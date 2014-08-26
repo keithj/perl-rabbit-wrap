@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use base qw(Test::Class);
-use Test::More tests => 27;
+use Test::More tests => 31;
 use Test::Exception;
 
 use Log::Log4perl;
@@ -35,30 +35,40 @@ sub constructor : Test(1) {
   new_ok('WTSI::NPG::RabbitMQ::Client', []);
 }
 
-sub connect_disconnect : Test(2) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+sub connect_disconnect : Test(4) {
+  my $connect_calledback    = 0;
+  my $disconnect_calledback = 0;
 
-  my $cv = AnyEvent->condvar;
-  ok($client->connect(@credentials, cond => $cv)->is_open, 'Can connect');
-  $cv->recv;
+  my $client = WTSI::NPG::RabbitMQ::Client->new
+    (connect_handler    => sub { $connect_calledback++ },
+     disconnect_handler => sub { $disconnect_calledback++ });
 
-  $cv = AnyEvent->condvar;
-  ok($client->disconnect(cond => $cv), 'Can disconnect');
-  $cv->recv;
+  ok($client->connect(@credentials)->is_open, 'Can connect');
+  ok($connect_calledback, 'Connect callback fired');
+
+  ok($client->disconnect, 'Can disconnect');
+  ok($disconnect_calledback, 'Disconnect callback fired');
 }
 
-sub open_close_channel : Test(7) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new(verbose => 1);
+sub open_close_channel : Test(9) {
+  my $open_calledback  = 0;
+  my $close_calledback = 0;
+
+  my $client = WTSI::NPG::RabbitMQ::Client->new
+    (open_channel_handler  => sub { $open_calledback++ },
+     close_channel_handler => sub { $close_calledback++ });
   my $channel_name = 'channel.' . $$;
 
   ok($client->connect(@credentials));
-  ok($client->is_open, "Client connected");
+  ok($client->is_open, 'Client connected');
   ok($client->open_channel(name => $channel_name), 'Can open channel');
   ok($client->channel($channel_name), 'Channel exists');
   ok($client->channel($channel_name)->is_open, 'Channel is open');
+  ok($open_calledback, 'Open callback fired');
+
   ok($client->close_channel(name => $channel_name));
   ok(!$client->channel($channel_name)->is_open, 'Channel is closed');
-
+  ok($close_calledback, 'Close callback fired');
   $client->disconnect;
 }
 
@@ -146,22 +156,30 @@ sub publish_consume : Test(2) {
                          exchange => $exchange_name,
                          channel  => $channel_name);
 
+  # Publish $total messages with one client and then consume them with
+  # another
+  my $total = 100;
   my $num_published = 0;
   my $num_consumed  = 0;
 
-  my $cv = AnyEvent::CondVar->new;
-  foreach my $i (0 .. 99) {
+  # Timeout after 10 seconds
+  my $timeout = 10;
+  my $cv = AnyEvent->condvar;
+  my $timer = AnyEvent->timer(after => $timeout, cb => $cv);
+
+  foreach my $i (0 .. $total - 1) {
     $publisher->publish(channel   => $channel_name,
                         exchange  => $exchange_name,
                         route     => $routing_key,
                         body      => "Hello $i",
                         mandatory => 1);
-
     # Count the messages out
     $num_published++;
     $cv->begin;
   }
 
+  # Provide a consume_handler callback that counts the messages with
+  # both an integer and an AnyEvent begin/end pair watcher
   my $consumer = WTSI::NPG::RabbitMQ::Client->new
     (consume_handler => sub {
        my ($payload) = @_;
@@ -174,13 +192,14 @@ sub publish_consume : Test(2) {
   $consumer->connect(@credentials);
   $consumer->open_channel(name => $channel_name);
 
+  # Begin consuming the messages
   $consumer->consume(channel => $channel_name,
                      queue   => $queue_name);
 
-  # Wait until all the published messages are consumed.
+  # Wait until all the messages are consumed (or timeout).
   $cv->recv;
-  cmp_ok($num_published, '==', 100, 'Number published');
-  cmp_ok($num_consumed,  '==', 100, 'Number consumed');
+  cmp_ok($num_published, '==', $total, 'Number published');
+  cmp_ok($num_consumed,  '==', $total, 'Number consumed');
 
   $publisher->unbind_queue(name     => $queue_name,
                            route    => $routing_key,

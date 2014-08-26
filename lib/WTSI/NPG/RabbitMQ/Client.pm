@@ -81,6 +81,13 @@ has 'consume_handler' =>
    lazy     => 1,
    builder  => '_make_default_handler');
 
+has 'consume_cancel_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
 has 'error_handler' =>
   (is       => 'rw',
    isa      => 'CodeRef',
@@ -109,6 +116,35 @@ sub channel {
 
   return $self->channels->{$name};
 }
+
+=head2 connect
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               host    => <server host name>,
+               port    => <server port>,
+               vhost   => <server vhost>,
+               user    => <user name>,
+               pass    => <user password>,
+               timeout => <connection timeout>,
+               tls     => <TLS flag, see AnyEvent::RabbitMQ>,
+               tune    => <Tuning arguments, see AnyEvent::RabbitMQ>,
+               cond    => <AnyEvent::condvar on which to synchronize>
+
+  Example :    my $c = $client->connect(host    => 'localhost',
+                                        port    => 5672,
+                                        vhost   => '/test',
+                                        user    => 'guest',
+                                        pass    => $pass,
+                                        timeout => 1);
+
+  Description: Connect to a RabbitMQ server. Call the connect_handler on
+               success, the connect_failure_handler on failure and the
+               error_handler in response to read_failure, return or close
+               events.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'connect' => sub { _maybe_sync('connect', @_) };
 
@@ -165,6 +201,20 @@ sub connect {
   return $self;
 }
 
+=head2 disconnect
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               cond    => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->disconnect;
+
+  Description: Disconnect from a RabbitMQ server. Call the disconnect_handler
+               on success or the error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
 around 'disconnect' => sub { _maybe_sync('disconnect', @_) };
 
 sub disconnect {
@@ -177,6 +227,22 @@ sub disconnect {
 
   return $self;
 }
+
+=head2 open_channel
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name    => <channel name>
+               cond    => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->open_channel(name => 'test');
+
+  Description: Open a new channel on a RabbitMQ server. Call the
+               open_channel_handler on success, the error_handler on
+               failure and the close_channel_handler on a close event.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'open_channel' => sub { _maybe_sync('open_channel', @_) };
 
@@ -197,6 +263,22 @@ sub open_channel {
 
   return $self;
 }
+
+=head2 close_channel
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name    => <channel name>
+               cond    => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->close_channel(name => 'test');
+
+  Description: Close a channel on a RabbitMQ server. Call the
+               close_channel_handler on success or the error_handler on
+               failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'close_channel' => sub { _maybe_sync('close_channel', @_) };
 
@@ -456,6 +538,9 @@ sub consume {
      no_ack       => $no_ack,
      consumer_tag => $consumer_tag,
      on_consume   => sub { $self->call_consume_handler(@_, $cname, $cv) },
+     on_cancel    => sub {
+       $self->call_consume_cancel_handler(@_, $cname, $cv)
+     },
      on_failure   => sub { $self->call_error_handler(@_, $cv) });
 
   return $self;
@@ -566,6 +651,20 @@ after 'call_consume_handler' => sub {
 
   $cv->send;
   $self->debug("Called consume_handler from '$channel_name'");
+};
+
+sub call_consume_cancel_handler {
+  my ($self, $response, $channel_name, $cv) = @_;
+
+  $self->consume_cancel_handler->($response);
+}
+
+after 'call_consume_cancel_handler' => sub {
+  my ($self, $response, $channel_name, $cv) = @_;
+
+  defined $cv or $self->logconfess("The cv argument was not defined");
+  $cv->send;
+  $self->debug("Called consume_cancel_handler from '$channel_name'");
 };
 
 sub call_error_handler {
