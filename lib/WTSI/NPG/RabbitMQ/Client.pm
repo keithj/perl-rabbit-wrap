@@ -205,7 +205,7 @@ sub connect {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               cond    => <AnyEvent::CondVar on which to synchronize>
+               cond => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->disconnect;
 
@@ -232,8 +232,8 @@ sub disconnect {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name    => <channel name>,
-               cond    => <AnyEvent::CondVar on which to synchronize>
+               name => <channel name>,
+               cond => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->open_channel(name => 'test');
 
@@ -268,8 +268,8 @@ sub open_channel {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name    => <channel name>,
-               cond    => <AnyEvent::CondVar on which to synchronize>
+               name => <channel name>,
+               cond => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->close_channel(name => 'test');
 
@@ -303,12 +303,12 @@ sub close_channel {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <exchange name>,
-               channel     => <channel name>,
-               type        => <exchange type name, see AnyEvent::RabbitMQ>,
-               durable     => <durability flag, see AnyEvent::RabbitMQ>,
-               auto_delete => <auto delete flag, see AnyEvent::RabbitMQ>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name    => <exchange name>,
+               channel => <channel name>,
+               type    => <exchange type name, see AnyEvent::RabbitMQ>,
+               durable => <durability flag, see AnyEvent::RabbitMQ>,
+               passive => <passivity flag, see AnyEvent::RabbitMQ>,
+               cond    => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->declare_exchange(name    => 'test',
                                                  channel => 'test');
@@ -319,16 +319,20 @@ sub close_channel {
 
 =cut
 
-around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
+around 'declare_exchange' => sub {
+
+  _maybe_sync('declare_exchange', @_)
+
+};
 
 sub declare_exchange {
   my ($self, %args) = @_;
-  my $name        = $args{name};
-  my $cname       = $args{channel};
-  my $type        = $args{type};
-  my $durable     = $args{durable};
-  my $auto_delete = $args{auto_delete};
-  my $cv          = $args{cond};
+  my $name    = $args{name};
+  my $cname   = $args{channel};
+  my $type    = $args{type};
+  my $durable = $args{durable};
+  my $passive = $args{passive};
+  my $cv      = $args{cond};
 
   defined $name or $self->logconfess("The name argument was undefined");
   $name or $self->logconfess("The name argument was empty");
@@ -336,21 +340,21 @@ sub declare_exchange {
   defined $cname or $self->logconfess("The channel argument was undefined");
   $cname or $self->logconfess("The channel argument was empty");
 
-  $type        ||= 'direct';
-  $durable     ||= 0;
-  $auto_delete ||= 0;
+  $type    ||= 'direct';
+  $durable ||= 0;
+  $passive ||= 0;
 
   my $channel = $self->channel($cname);
   $channel->declare_exchange
-    (exchange    => $name,
-     type        => $type,
-     durable     => $durable,
-     auto_delete => $auto_delete,
-     on_success  => sub {
+    (exchange   => $name,
+     type       => $type,
+     durable    => $durable,
+     passive    => $passive,
+     on_success => sub {
        $self->debug("Declared exchange '$name' on channel '$cname'");
-       $cv->send;
+       $cv->send($self);
      },
-     on_failure  => sub { $self->call_error_handler(@_, $cv) });
+     on_failure => sub { $self->call_error_handler(@_, $cv) });
 
   return $self;
 }
@@ -359,9 +363,9 @@ sub declare_exchange {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <exchange name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name    => <exchange name>,
+               channel => <channel name>,
+               cond    => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->delete_exchange(name    => 'test',
                                                 channel => 'test');
@@ -391,7 +395,7 @@ sub delete_exchange {
     (exchange   => $name,
      on_success => sub {
        $self->debug("Deleted exchange '$name' on channel '$cname'");
-       $cv->send;
+       $cv->send($self);
      },
      on_failure => sub { $self->call_error_handler(@_, $cv) });
 
@@ -402,16 +406,19 @@ sub delete_exchange {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <queue name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name      => <queue name>,
+               channel   => <channel name>,
+               durable   => <durability flag, see AnyEvent::RabbitMQ>,
+               exclusive => <exclusivity flag, see AnyEvent::RabbitMQ>,
+               passive   => <passivity flag, see AnyEvent::RabbitMQ>,
+               cond      => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->declare_queue(name    => 'test',
                                               channel => 'test');
 
   Description: Declare a queue on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : Str queue name
 
 =cut
 
@@ -419,34 +426,45 @@ around 'declare_queue' => sub { _maybe_sync('declare_queue', @_) };
 
 sub declare_queue {
   my ($self, %args) = @_;
-  my $name  = $args{name};
-  my $cname = $args{channel};
-  my $cv    = $args{cond};
-
-  defined $name or $self->logconfess("The name argument was undefined");
-  $name or $self->logconfess("The name argument was empty");
+  my $name     = $args{name};
+  my $cname    = $args{channel};
+  my $durable  = $args{durable};
+  my $passive  = $args{passive};
+  my $excusive = $args{exclusive};
+  my $cv       = $args{cond};
 
   defined $cname or $self->logconfess("The channel argument was undefined");
   $cname or $self->logconfess("The channel argument was empty");
 
+  $name    ||= '';
+  $durable ||= 0;
+  $passive ||= 0;
+
   $self->channel($cname)->declare_queue
     (queue      => $name,
+     durable    => $durable,
      on_success => sub {
-       $self->debug("Declared queue '$name' on channel '$cname'");
-       $cv->send;
+       my ($response) = @_;
+       my $frame = $response->method_frame;
+       my $msg = sprintf("Declared queue '%s' consumer count: %d, " .
+                         "message count: %d on channel '$cname'",
+                         $frame->queue, $frame->consumer_count,
+                         $frame->message_count);
+       $self->debug($msg);
+       $cv->send($frame->queue);
      },
      on_failure => sub { $self->call_error_handler(@_, $cv) });
 
-  return $self;
+  return $name;
 }
 
 =head2 delete_queue
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <queue name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name    => <queue name>,
+               channel => <channel name>,
+               cond    => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->delete_queue(name    => 'test',
                                              channel => 'test');
@@ -475,7 +493,7 @@ sub delete_queue {
     (queue      => $name,
      on_success => sub {
        $self->debug("Deleted queue '$name' on channel '$cname'");
-       $cv->send;
+       $cv->send($self);
      },
      on_failure => sub { $self->call_error_handler(@_, $cv) });
 
@@ -486,11 +504,11 @@ sub delete_queue {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <queue name>,
-               route       => <routing key>,
-               exchange    => <exchange name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name     => <queue name>,
+               route    => <routing key>,
+               exchange => <exchange name>,
+               channel  => <channel name>,
+               cond     => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->bind_queue(name     => 'test',
                                            route    => 'test',
@@ -533,7 +551,7 @@ sub bind_queue {
      on_success => sub {
        $self->debug("Bound queue '$name' to exchange '$ename' with ",
                     "routing key '$route' on channel '$cname'");
-       $cv->send;
+       $cv->send($self);
      },
      on_failure => sub { $self->call_error_handler(@_, $cv) });
 
@@ -544,11 +562,11 @@ sub bind_queue {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name        => <queue name>,
-               route       => <routing key>,
-               exchange    => <exchange name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
+               name     => <queue name>,
+               route    => <routing key>,
+               exchange => <exchange name>,
+               channel  => <channel name>,
+               cond     => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->unbind_queue(name     => 'test',
                                              route    => 'test',
@@ -591,7 +609,7 @@ sub unbind_queue {
      on_success => sub {
        $self->debug("Unbound queue '$name' from exchange '$ename' with ",
                     "routing key '$route' on channel '$cname'");
-       $cv->send;
+       $cv->send($self);
      },
      on_failure => sub { $self->call_error_handler(@_, $cv) });
 
@@ -673,7 +691,7 @@ after 'call_connect_handler' => sub {
   my ($self, $broker, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send;
+  $cv->send($self);
   $self->debug("Called connect_handler");
 };
 
@@ -687,7 +705,7 @@ after 'call_connect_failure_handler' => sub {
   my ($self, $iohandle, $code, $message, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send;
+  $cv->send($self);
   $self->debug("Called connect_failure_handler");
 };
 
@@ -700,9 +718,10 @@ sub call_disconnect_handler {
 after 'call_disconnect_handler' => sub {
   my ($self, $cv) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
   $self->broker(undef);
-  $cv->send;
+
+  defined $cv or $self->logconfess("The cv argument was not defined");
+  $cv->send($self);
   $self->debug("Called disconnect_handler");
 };
 
@@ -715,9 +734,10 @@ sub call_open_channel_handler {
 after 'call_open_channel_handler' => sub {
   my ($self, $channel, $channel_name, $cv) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
   $self->channels->{$channel_name} = $channel;
-  $cv->send;
+
+  defined $cv or $self->logconfess("The cv argument was not defined");
+  $cv->send($self);
   $self->debug("Called open_channel for '$channel_name'");
 };
 
@@ -731,7 +751,7 @@ after 'call_close_channel_handler' => sub {
   my ($self, $channel_name, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send;
+  $cv->send($self);
   $self->debug("Handled close_channel for '$channel_name'");
 };
 
@@ -742,11 +762,12 @@ sub call_publish_handler {
 }
 
 after 'call_publish_handler' => sub {
-  my ($self, $message, $route, $cv) = @_;
+  my ($self, $body, $route, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send;
-  $self->debug("Called publish_handler '$message' to '$route'");
+  $cv->send($self);
+  $self->debug("Called publish_handler for body '$body' with routing key ",
+               "'$route'");
 };
 
 sub call_consume_handler {
@@ -766,7 +787,7 @@ after 'call_consume_handler' => sub {
   my $payload = $response->{body}->to_raw_payload;
   $self->debug("Received payload '$payload'");
 
-  $cv->send;
+  $cv->send($self);
   $self->debug("Called consume_handler from '$channel_name'");
 };
 
@@ -780,7 +801,7 @@ after 'call_consume_cancel_handler' => sub {
   my ($self, $response, $channel_name, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send;
+  $cv->send($self);
   $self->debug("Called consume_cancel_handler from '$channel_name'");
 };
 
@@ -793,8 +814,6 @@ sub call_error_handler {
 after 'call_error_handler' => sub {
   my ($self, $response, $cv) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-
   if (ref $response) {
     my $method_frame = $response->method_frame;
     $self->error($method_frame->reply_code, ": ", $method_frame->reply_text);
@@ -803,7 +822,8 @@ after 'call_error_handler' => sub {
     $self->error($response);
   }
 
-  $cv->send;
+  defined $cv or $self->logconfess("The cv argument was not defined");
+  $cv->send($self);
   $self->debug("Called error_handler");
 };
 
@@ -813,12 +833,19 @@ sub _make_default_handler {
   return sub { return 1 };
 }
 
-sub _is_condvar {
-  my ($arg) = @_;
+# Call a wrapped method
+sub _call_with_sync {
+  my ($self, $name, $method, %args) = @_;
 
-  return defined $arg && ref $arg && (ref $arg eq 'AnyEvent::CondVar');
+  $self->debug("Calling method '$name' with a supplied AnyEvent::CondVar");
+  return $self->$method(%args);
 }
 
+# This function exists to wait for the completion of a method that
+# would otherwise return immediately because it does its work
+# asynchronously. It does this by creating a new AnyEvent::CondVar (if
+# none was supplied in the arguments then calling the method and
+# finally calling the recv function on the CondVar.
 sub _maybe_sync {
   my ($name, $orig, $self, %args) = @_;
 
@@ -837,11 +864,16 @@ sub _maybe_sync {
     }
 
     $self->$orig(%args);
-
+    # This return value propagates any asynchronously created value
+    # (from AnyEvent::CondVar->send calls) back to the caller.
     $args{cond}->recv;
   }
+}
 
-  return $self;
+sub _is_condvar {
+  my ($arg) = @_;
+
+  return defined $arg && ref $arg && (ref $arg eq 'AnyEvent::CondVar');
 }
 
 __PACKAGE__->meta->make_immutable;
@@ -872,19 +904,6 @@ AnyEvent::RabbitMQ which provides these features:
    objects where operations are required to block.
 
  - Adds argument checking and logging using Log4perl.
-
-
-=head1 SYNOPSIS
-
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
-  $client->connect(host  => 'localhost',
-                   port  => 5672,
-                   vhost => '/',
-                   user  => 'guest',
-                   pass  => 'guest');
-
-  $client->open_channel(name => 'test');
-
 
 
 =head1 AUTHOR

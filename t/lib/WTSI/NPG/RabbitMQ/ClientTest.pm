@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use base qw(Test::Class);
-use Test::More tests => 31;
+use Test::More tests => 33;
 use Test::Exception;
 
 use Log::Log4perl;
@@ -87,7 +87,7 @@ sub declare_delete_exchange : Test(2) {
   $client->disconnect;
 }
 
-sub declare_delete_queue : Test(2) {
+sub declare_delete_queue : Test(4) {
   my $client = WTSI::NPG::RabbitMQ::Client->new;
   my $channel_name = 'channel.' . $$;
   my $queue_name   = 'queue.' . $$;
@@ -95,10 +95,17 @@ sub declare_delete_queue : Test(2) {
   $client->connect(@credentials);
   $client->open_channel(name => $channel_name);
 
-  ok($client->declare_queue(name    => $queue_name,
-                            channel => $channel_name), 'Queue declared');
+  is($client->declare_queue(name    => $queue_name,
+                            channel => $channel_name),
+     $queue_name, 'Queue declared');
   ok($client->delete_queue(name    => $queue_name,
                            channel => $channel_name), 'Queue deleted');
+
+  my $anon_queue = $client->declare_queue(channel => $channel_name);
+  ok($anon_queue, 'Anonymous queue declared');
+  ok($client->delete_queue(name    => $anon_queue,
+                           channel => $channel_name),
+     'Anonymouse queue deleted');
 
   $client->close_channel(name => $channel_name);
   $client->disconnect;
