@@ -232,7 +232,7 @@ sub disconnect {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name    => <channel name>
+               name    => <channel name>,
                cond    => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->open_channel(name => 'test');
@@ -268,7 +268,7 @@ sub open_channel {
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
 
-               name    => <channel name>
+               name    => <channel name>,
                cond    => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->close_channel(name => 'test');
@@ -298,6 +298,26 @@ sub close_channel {
 
   return $self;
 }
+
+=head2 declare_exchange
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <exchange name>,
+               channel     => <channel name>,
+               type        => <exchange type name, see AnyEvent::RabbitMQ>,
+               durable     => <durability flag, see AnyEvent::RabbitMQ>,
+               auto_delete => <auto delete flag, see AnyEvent::RabbitMQ>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->declare_exchange(name    => 'test',
+                                                 channel => 'test');
+
+  Description: Declare an exchange on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
 
@@ -335,6 +355,23 @@ sub declare_exchange {
   return $self;
 }
 
+=head2 delete_exchange
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <exchange name>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->delete_exchange(name    => 'test',
+                                                channel => 'test');
+
+  Description: Delete an exchange on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
 around 'delete_exchange' => sub { _maybe_sync('delete_exchange', @_) };
 
 sub delete_exchange {
@@ -361,6 +398,23 @@ sub delete_exchange {
   return $self;
 }
 
+=head2 declare_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <queue name>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->declare_queue(name    => 'test',
+                                              channel => 'test');
+
+  Description: Declare a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
 around 'declare_queue' => sub { _maybe_sync('declare_queue', @_) };
 
 sub declare_queue {
@@ -385,6 +439,23 @@ sub declare_queue {
 
   return $self;
 }
+
+=head2 delete_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <queue name>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->delete_queue(name    => 'test',
+                                             channel => 'test');
+
+  Description: Delete a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'delete_queue' => sub { _maybe_sync('delete_queue', @_) };
 
@@ -411,6 +482,27 @@ sub delete_queue {
   return $self;
 }
 
+=head2 bind_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <queue name>,
+               route       => <routing key>,
+               exchange    => <exchange name>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->bind_queue(name     => 'test',
+                                           route    => 'test',
+                                           exchange => '',
+                                           channel  => 'test');
+
+  Description: Bind a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
 around 'bind_queue' => sub { _maybe_sync('bind_queue', @_) };
 
 sub bind_queue {
@@ -432,6 +524,8 @@ sub bind_queue {
   defined $cname or $self->logconfess("The channel argument was undefined");
   $cname or $self->logconfess("The channel argument was empty");
 
+  $ename ||= '';
+
   $self->channel($cname)->bind_queue
     (queue       => $name,
      exchange    => $ename,
@@ -445,6 +539,27 @@ sub bind_queue {
 
   return $self;
 }
+
+=head2 unbind_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               name        => <queue name>,
+               route       => <routing key>,
+               exchange    => <exchange name>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->unbind_queue(name     => 'test',
+                                             route    => 'test',
+                                             exchange => '',
+                                             channel  => 'test');
+
+  Description: Unbind a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
 
 around 'unbind_queue' => sub { _maybe_sync('unbind_queue', @_) };
 
@@ -466,6 +581,8 @@ sub unbind_queue {
 
   defined $cname or $self->logconfess("The channel argument was undefined");
   $cname or $self->logconfess("The channel argument was empty");
+
+  $ename ||= '';
 
   $self->channel($cname)->unbind_queue
     (queue       => $name,
@@ -732,3 +849,60 @@ __PACKAGE__->meta->make_immutable;
 no Moose;
 
 1;
+
+__END__
+
+=head1 NAME
+
+WTSI::NPG::RabbitMQ::Client
+
+=head1 DESCRIPTION
+
+WTSI::NPG::RabbitMQ::Client is a convenience wrapper around
+AnyEvent::RabbitMQ which provides these features:
+
+ - Sets up default callbacks for events fired while performing common
+   messaging tasks, such as connecting and disconnecting from the
+   server, declaring and deleting exchanges and queues, binding and
+   unbinding queues and publishing and consuming messages. The
+   callbacks for these operations are stored as Moose attributes and
+   may be customised.
+
+ - Provides an option to create automatically and use AnyEvent::CondVar
+   objects where operations are required to block.
+
+ - Adds argument checking and logging using Log4perl.
+
+
+=head1 SYNOPSIS
+
+  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  $client->connect(host  => 'localhost',
+                   port  => 5672,
+                   vhost => '/',
+                   user  => 'guest',
+                   pass  => 'guest');
+
+  $client->open_channel(name => 'test');
+
+
+
+=head1 AUTHOR
+
+Keith James <kdj@sanger.ac.uk>
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+Copyright (c) 2014 Genome Research Limited. All Rights Reserved.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the Perl Artistic License or the GNU General
+Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+=cut

@@ -19,9 +19,9 @@ use WTSI::NPG::RabbitMQ::Client;
 
 our @credentials = (host  => 'localhost',
                     port  => 5672,
-                    vhost => '/',
-                    user  => 'guest',
-                    pass  => 'guest');
+                    vhost => '/test',
+                    user  => 'npg',
+                    pass  => 'npg');
 
 sub make_fixture : Test(setup) {
 
@@ -81,7 +81,6 @@ sub declare_delete_exchange : Test(2) {
   $client->open_channel(name => $channel_name);
   ok($client->declare_exchange(name    => $exchange_name,
                                channel => $channel_name), 'Exchange declared');
-
   ok($client->delete_exchange(name    => $exchange_name,
                               channel => $channel_name), 'Exchange deleted');
   $client->close_channel(name => $channel_name);
@@ -110,11 +109,12 @@ sub bind_unbind_queue : Test(2) {
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
   my $queue_name    = 'queue.' . $$;
-  my $routing_key   = 'route.' . $$;
+  my $routing_key   = 'bind_unbind_queue_test.' . $$;
 
   $client->connect(@credentials);
   $client->open_channel(name => $channel_name);
   $client->declare_exchange(name    => $exchange_name,
+                            type    => 'direct',
                             channel => $channel_name);
   $client->declare_queue(name    => $queue_name,
                          channel => $channel_name);
@@ -123,7 +123,6 @@ sub bind_unbind_queue : Test(2) {
                          route    => $routing_key,
                          exchange => $exchange_name,
                          channel  => $channel_name), 'Queue bound');
-
   ok($client->unbind_queue(name     => $queue_name,
                            route    => $routing_key,
                            exchange => $exchange_name,
@@ -143,7 +142,7 @@ sub publish_consume : Test(2) {
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
   my $queue_name    = 'queue.' . $$;
-  my $routing_key   = 'route.' . $$;
+  my $routing_key   = 'publish_consume_test.' . $$;
 
   $publisher->connect(@credentials);
   $publisher->open_channel(name => $channel_name);
