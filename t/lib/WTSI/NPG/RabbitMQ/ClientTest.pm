@@ -126,14 +126,14 @@ sub bind_unbind_queue : Test(2) {
   $client->declare_queue(name    => $queue_name,
                          channel => $channel_name);
 
-  ok($client->bind_queue(name     => $queue_name,
-                         route    => $routing_key,
-                         exchange => $exchange_name,
-                         channel  => $channel_name), 'Queue bound');
-  ok($client->unbind_queue(name     => $queue_name,
-                           route    => $routing_key,
-                           exchange => $exchange_name,
-                           channel  => $channel_name), 'Queue unbound');
+  ok($client->bind_queue(name        => $queue_name,
+                         routing_key => $routing_key,
+                         exchange    => $exchange_name,
+                         channel     => $channel_name), 'Queue bound');
+  ok($client->unbind_queue(name        => $queue_name,
+                           routing_key => $routing_key,
+                           exchange    => $exchange_name,
+                           channel     => $channel_name), 'Queue unbound');
 
   $client->delete_queue(name    => $queue_name,
                         channel => $channel_name);
@@ -157,10 +157,10 @@ sub publish_consume : Test(2) {
                                channel => $channel_name);
   $publisher->declare_queue(name    => $queue_name,
                             channel => $channel_name);
-  $publisher->bind_queue(name     => $queue_name,
-                         route    => $routing_key,
-                         exchange => $exchange_name,
-                         channel  => $channel_name);
+  $publisher->bind_queue(name        => $queue_name,
+                         routing_key => $routing_key,
+                         exchange    => $exchange_name,
+                         channel     => $channel_name);
 
   # Publish $total messages with one client and then consume them with
   # another
@@ -174,11 +174,11 @@ sub publish_consume : Test(2) {
   my $timer = AnyEvent->timer(after => $timeout, cb => $cv);
 
   foreach my $i (0 .. $total - 1) {
-    $publisher->publish(channel   => $channel_name,
-                        exchange  => $exchange_name,
-                        route     => $routing_key,
-                        body      => "Hello $i",
-                        mandatory => 1);
+    $publisher->publish(channel     => $channel_name,
+                        exchange    => $exchange_name,
+                        routing_key => $routing_key,
+                        body        => "Hello $i",
+                        mandatory   => 1);
     # Count the messages out
     $num_published++;
     $cv->begin;
@@ -207,10 +207,10 @@ sub publish_consume : Test(2) {
   cmp_ok($num_published, '==', $total, 'Number published');
   cmp_ok($num_consumed,  '==', $total, 'Number consumed');
 
-  $publisher->unbind_queue(name     => $queue_name,
-                           route    => $routing_key,
-                           exchange => $exchange_name,
-                           channel  => $channel_name);
+  $publisher->unbind_queue(name        => $queue_name,
+                           routing_key => $routing_key,
+                           exchange    => $exchange_name,
+                           channel     => $channel_name);
   $publisher->delete_queue(name    => $queue_name,
                            channel => $channel_name);
   $publisher->delete_exchange(name    => $exchange_name,
