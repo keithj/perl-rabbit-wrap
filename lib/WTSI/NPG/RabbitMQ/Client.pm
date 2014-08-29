@@ -209,11 +209,11 @@ sub connect {
      timeout => $timeout,
      tls     => $tls,
      tune    => $tune,
-     on_success      => sub { $self->call_connect_handler(@_, $cv) },
-     on_failure      => sub { $self->call_connect_failure_handler(@_, $cv) },
-     on_read_failure => sub { $self->call_error_handler(@_, $cv) },
-     on_return       => sub { $self->call_error_handler(@_, $cv) },
-     on_close        => sub { $self->call_error_handler(@_, $cv) });
+     on_success      => sub { $self->call_connect_handler($cv, @_) },
+     on_failure      => sub { $self->call_connect_failure_handler($cv, @_) },
+     on_read_failure => sub { $self->call_error_handler($cv, @_) },
+     on_return       => sub { $self->call_error_handler($cv, @_) },
+     on_close        => sub { $self->call_error_handler($cv, @_) });
 
   return $self;
 }
@@ -711,13 +711,13 @@ sub consume {
 }
 
 sub call_connect_handler {
-  my ($self, $broker, $cv) = @_;
+  my ($self, $cv) = @_;
 
   $self->connect_handler->($self);
 }
 
 after 'call_connect_handler' => sub {
-  my ($self, $broker, $cv) = @_;
+  my ($self, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
   $cv->send($self);
