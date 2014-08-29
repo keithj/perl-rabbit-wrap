@@ -43,11 +43,17 @@ has 'channels' =>
    default  => sub { return {} },
    init_arg => undef);
 
-has 'fully_asynchronous' =>
+has 'blocking_enabled' =>
   (is       => 'rw',
    isa      => 'Bool',
    required => 1,
-   default  => 0);
+   default  => 1);
+
+has 'acking_enabled' =>
+  (is       => 'rw',
+   isa      => 'Bool',
+   required => 1,
+   default  => 1);
 
 has 'connect_handler' =>
   (is       => 'rw',
@@ -193,7 +199,7 @@ sub connect {
 
   $tune ||= {};
 
-  unless ($self->fully_asynchronous) {
+  if ($self->blocking_enabled) {
     _is_condvar($cv) or
       $self->logconfess("The cv argument was not an AnyEvent::CondVar");
   }
@@ -701,7 +707,9 @@ sub consume {
     (queue        => $queue,
      no_ack       => $no_ack,
      consumer_tag => $consumer_tag,
-     on_consume   => sub { $self->call_consume_handler($cname, $cv, @_) },
+     on_consume   => sub {
+       $self->call_consume_handler($cname, $no_ack, $cv, @_)
+     },
      on_cancel    => sub {
        $self->call_consume_cancel_handler($cname, $cv, @_)
      },
@@ -802,7 +810,7 @@ after 'call_publish_handler' => sub {
 };
 
 sub call_consume_handler {
-  my ($self, $channel_name, $cv, @args) = @_;
+  my ($self, $channel_name, $no_ack, $cv, @args) = @_;
   my ($response) = @args;
 
   my $payload = $response->{body}->to_raw_payload;
@@ -810,12 +818,26 @@ sub call_consume_handler {
 }
 
 after 'call_consume_handler' => sub {
-  my ($self, $channel_name, $cv, @args) = @_;
+  my ($self, $channel_name, $no_ack, $cv, @args) = @_;
   my ($response) = @args;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
-  my $dtag = $response->{deliver}->method_frame->delivery_tag;
-  $self->channel($channel_name)->ack(delivery_tag => $dtag);
+
+  if ($no_ack) {
+    $self->debug("Not acking because consumer is in no_ack mode");
+  }
+  else {
+    my $dtag = $response->{deliver}->method_frame->delivery_tag;
+
+    if ($self->acking_enabled) {
+      $self->debug("Acking delivery tag '$dtag'");
+      $self->channel($channel_name)->ack(delivery_tag => $dtag);
+    }
+    else {
+      $self->debug("Not acking delivery tag '$dtag' because ",
+                   "client acking is not enabled");
+    }
+  }
 
   my $payload = $response->{body}->to_raw_payload;
   $self->debug("Received payload '$payload'");
@@ -888,10 +910,10 @@ sub _maybe_sync {
 
   $self->debug("Calling wrapped method for $name");
 
-  # If this flag is on, the API user has assumed responsibility for
+  # If this flag is off, the API user has assumed responsibility for
   # wiring up all the callbacks before any methods have been
-  # called. The flag indicates that we are fully event-driven.
-  if ($self->fully_asynchronous) {
+  # called.
+  if (!$self->blocking_enabled) {
     $self->$orig(%args);
   }
   else {

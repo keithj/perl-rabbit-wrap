@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use base qw(Test::Class);
-use Test::More tests => 33;
+use Test::More tests => 35;
 use Test::Exception;
 
 use Log::Log4perl;
@@ -188,8 +188,6 @@ sub publish_consume : Test(2) {
   # both an integer and an AnyEvent begin/end pair watcher
   my $consumer = WTSI::NPG::RabbitMQ::Client->new
     (consume_handler => sub {
-       my ($payload) = @_;
-
        # Count the messages in
        $num_consumed++;
        $cv->end;
@@ -204,8 +202,109 @@ sub publish_consume : Test(2) {
 
   # Wait until all the messages are consumed (or timeout).
   $cv->recv;
+  $consumer->disconnect;
+
   cmp_ok($num_published, '==', $total, 'Number published');
   cmp_ok($num_consumed,  '==', $total, 'Number consumed');
+
+  $publisher->unbind_queue(name        => $queue_name,
+                           routing_key => $routing_key,
+                           exchange    => $exchange_name,
+                           channel     => $channel_name);
+  $publisher->delete_queue(name    => $queue_name,
+                           channel => $channel_name);
+  $publisher->delete_exchange(name    => $exchange_name,
+                              channel => $channel_name);
+
+  $publisher->close_channel(name => $channel_name);
+  $publisher->disconnect;
+}
+
+sub publish_consume_no_ack : Test(2) {
+  my $publisher = WTSI::NPG::RabbitMQ::Client->new;
+  my $channel_name  = 'channel.' . $$;
+  my $exchange_name = 'exchange.' . $$;
+  my $queue_name    = 'queue.' . $$;
+  my $routing_key   = 'publish_consume_test.' . $$;
+
+  $publisher->connect(@credentials);
+  $publisher->open_channel(name => $channel_name);
+  $publisher->declare_exchange(name    => $exchange_name,
+                               channel => $channel_name);
+  $publisher->declare_queue(name    => $queue_name,
+                            channel => $channel_name);
+  $publisher->bind_queue(name        => $queue_name,
+                         routing_key => $routing_key,
+                         exchange    => $exchange_name,
+                         channel     => $channel_name);
+
+  # Publish $total messages with one client and then consume them with
+  # another
+  my $total = 100;
+  my $num_published = 0;
+  my $num_consumed = 0;
+
+  # Timeout after 10 seconds
+  my $timeout = 10;
+  my $cv_ack_off = AnyEvent->condvar;
+  my $cv_ack     = AnyEvent->condvar;
+  my $timer_ack_off = AnyEvent->timer(after => $timeout, cb => $cv_ack_off);
+
+  foreach my $i (0 .. $total - 1) {
+    $publisher->publish(channel     => $channel_name,
+                        exchange    => $exchange_name,
+                        routing_key => $routing_key,
+                        body        => "Hello $i",
+                        mandatory   => 1);
+    # Count the messages out
+    $num_published++;
+    $cv_ack_off->begin;
+    $cv_ack->begin;
+  }
+
+  # Provide a consume_handler callback that counts the messages with
+  # both an integer and an AnyEvent begin/end pair watcher
+  my $consumer_ack_off = WTSI::NPG::RabbitMQ::Client->new
+    (acking_enabled  => 0,
+     consume_handler => sub {
+       # Count the messages in
+       $num_consumed++;
+       $cv_ack_off->end;
+     });
+
+  $consumer_ack_off->connect(@credentials);
+  $consumer_ack_off->open_channel(name => $channel_name);
+
+  # Begin consuming the messages, without acking
+  $consumer_ack_off->consume(channel => $channel_name,
+                             queue   => $queue_name);
+
+  # Wait until all the messages are consumed (or timeout).
+  $cv_ack_off->recv;
+  $consumer_ack_off->disconnect;
+
+  my $timer_ack = AnyEvent->timer(after => $timeout, cb => $cv_ack);
+  my $consumer_ack = WTSI::NPG::RabbitMQ::Client->new
+    (acking_enabled  => 1,
+     consume_handler => sub {
+       # Count the messages in again
+       $num_consumed++;
+       $cv_ack->end;
+     });
+
+  $consumer_ack->connect(@credentials);
+  $consumer_ack->open_channel(name => $channel_name);
+
+  # Begin consuming the messages, with acking
+  $consumer_ack->consume(channel => $channel_name,
+                         queue   => $queue_name);
+
+  # Wait until all the messages are consumed (or timeout).
+  $cv_ack->recv;
+  $consumer_ack->disconnect;
+
+  cmp_ok($num_published, '==', $total, 'Number published');
+  cmp_ok($num_consumed,  '==', $total * 2, 'Number consumed');
 
   $publisher->unbind_queue(name        => $queue_name,
                            routing_key => $routing_key,
