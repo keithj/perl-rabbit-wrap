@@ -6,7 +6,7 @@ use AnyEvent::RabbitMQ;
 use AnyEvent::Strict;
 use Moose;
 
-with 'WTSI::NPG::Loggable';
+with 'WTSI::NPG::RabbitMQ::Loggable';
 
 our @HANDLED_BROKER_METHODS = qw(is_open server_properties verbose);
 
@@ -197,6 +197,10 @@ sub connect {
 
   defined $pass or $self->logconfess("The pass argument was undefined");
 
+  defined $tune and
+    (ref $tune eq 'HASH' or
+     $self->logconfess("The tune argument was not a HashRef"));
+
   $tune ||= {};
 
   if ($self->blocking_enabled) {
@@ -342,11 +346,7 @@ sub close_channel {
 
 =cut
 
-around 'declare_exchange' => sub {
-
-  _maybe_sync('declare_exchange', @_)
-
-};
+around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
 
 sub declare_exchange {
   my ($self, %args) = @_;
@@ -735,6 +735,7 @@ after 'call_connect_handler' => sub {
 sub call_connect_failure_handler {
   my ($self, $cv, @args) = @_;
   my ($iohandle, $code, $message) = @args;
+
   $self->connect_failure_handler->($self, $iohandle, $code, $message);
 }
 

@@ -1,6 +1,6 @@
 use utf8;
 
-package WTSI::NPG::Loggable;
+package WTSI::NPG::RabbitMQ::Loggable;
 
 use Log::Log4perl;
 use Moose::Role;
@@ -37,7 +37,7 @@ __END__
 
 =head1 NAME
 
-WTSI::NPG::Loggable
+WTSI::NPG::RabbitMQ::Loggable
 
 =head1 DESCRIPTION
 
@@ -45,13 +45,16 @@ Provides a logging facility via Log::Log4perl. When consumed, this
 role automatically delegates Log::Log4perl logging method calls to a
 logger.
 
+This module could be replaced by WTSI::NPG::Loggable. However, at the
+moment I want this to have no other NPG dependencies.
+
 =head1 AUTHOR
 
 Keith James <kdj@sanger.ac.uk>
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-Copyright (c) 2013 Genome Research Limited. All Rights Reserved.
+Copyright (c) 2013-2014 Genome Research Limited. All Rights Reserved.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the Perl Artistic License or the GNU General
