@@ -10,4 +10,3 @@ before_script:
   - rabbitmqctl add_vhost /test
   - rabbitmqctl add_user npg npg
   - rabbitmqctl set_permissions -p /test npg '.*' '.*' '.*'
-
