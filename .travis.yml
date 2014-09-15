@@ -11,9 +11,9 @@ services:
 
 install:
   - cpanm --quiet --notest AnyEvent
-  - cpanm --quiet --notest Devel::GlobalDestruction
   - cpanm --quiet --notest Net::AMQP
   - cpanm --quiet --notest Readonly
+  - cpanm --quiet --notest Module::Install::AuthorTests
 
   - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
   - tar -xvf AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
