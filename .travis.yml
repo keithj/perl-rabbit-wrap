@@ -15,11 +15,13 @@ install:
   - cpanm --quiet --notest Readonly
   - cpanm --quiet --notest Module::Install::AuthorTests
 
-  - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
-  - tar -xvf AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
-  - cd AnyEvent-RabbitMQ-${ANYEVENT_VERSION} && perl Makefile.PL && sudo make install
+  - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O /tmp/AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
+  - cd /tmp && tar xfz AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
+  - cd AnyEvent-RabbitMQ-${ANYEVENT_VERSION}
+  - sudo perl Makefile.PL ; make install
 
 before_script:
   - sudo rabbitmqctl add_vhost /test
   - sudo rabbitmqctl add_user npg npg
   - sudo rabbitmqctl set_permissions -p /test npg '.*' '.*' '.*'
+  - cd ${TRAVIS_BUILD_DIR}
