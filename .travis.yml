@@ -11,9 +11,11 @@ services:
 
 install:
   - cpanm --quiet --notest AnyEvent
+  - cpanm --quiet --notest Log::Log4perl
+  - cpanm --quiet --notest Module::Install::AuthorTests
   - cpanm --quiet --notest Net::AMQP
   - cpanm --quiet --notest Readonly
-  - cpanm --quiet --notest Module::Install::AuthorTests
+  - cpanm --quiet --notest Test::Class
 
 before_script:
   - sudo rabbitmqctl add_vhost /test
