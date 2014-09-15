@@ -13,6 +13,7 @@ install:
   - cpanm --quiet --notest AnyEvent
   - cpanm --quiet --notest Net::AMQP
   - cpanm --quiet --notest Readonly
+  - cpanm --quiet --notest Module::Install
   - cpanm --quiet --notest Module::Install::AuthorTests
 
 before_script:
