@@ -13,7 +13,6 @@ install:
   - cpanm --quiet --notest AnyEvent
   - cpanm --quiet --notest Net::AMQP
   - cpanm --quiet --notest Readonly
-  - cpanm --quiet --notest Module::Install
   - cpanm --quiet --notest Module::Install::AuthorTests
 
 before_script:
@@ -24,5 +23,5 @@ before_script:
   - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O /tmp/AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
   - cd /tmp && tar xfz AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
   - cd AnyEvent-RabbitMQ-${ANYEVENT_VERSION}
-  - sudo perl Makefile.PL ; make install
+  - perl Makefile.PL ; make install
   - cd ${TRAVIS_BUILD_DIR}
