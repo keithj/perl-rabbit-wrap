@@ -1,3 +1,6 @@
+env:
+  - ANYEVENT_VERSION=1.17-25-g6a194a1
+
 language: perl
 
 perl:
@@ -5,6 +8,19 @@ perl:
 
 services:
   - rabbitmq
+
+install:
+  - cpanm --quiet --notest AnyEvent
+  - cpanm --quiet --notest Log::Log4perl
+  - cpanm --quiet --notest Module::Install::AuthorTests
+  - cpanm --quiet --notest Net::AMQP
+  - cpanm --quiet --notest Readonly
+  - cpanm --quiet --notest Test::Class
+  - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O /tmp/AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
+  - cd /tmp && tar xfz AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
+  - cd AnyEvent-RabbitMQ-${ANYEVENT_VERSION}
+  - perl Makefile.PL && make install
+  - cd ${TRAVIS_BUILD_DIR}
 
 before_script:
   - sudo rabbitmqctl add_vhost /test
