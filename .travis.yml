@@ -15,7 +15,7 @@ install:
   - cpanm --quiet --notest Net::AMQP
   - cpanm --quiet --notest Readonly
 
-  - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz
+  - wget https://github.com/wtsi-npg/AnyEvent-RabbitMQ/archive/${ANYEVENT_VERSION}.tar.gz -O AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
   - tar -xvf AnyEvent-RabbitMQ-${ANYEVENT_VERSION}.tar.gz
   - cd AnyEvent-RabbitMQ-${ANYEVENT_VERSION} && perl Makefile.PL && sudo make install
 
