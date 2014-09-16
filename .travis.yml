@@ -11,6 +11,7 @@ services:
 
 install:
   - cpanm --quiet --notest AnyEvent
+  - cpanm --quiet --notest Data::Dump
   - cpanm --quiet --notest Log::Log4perl
   - cpanm --quiet --notest Module::Install::AuthorTests
   - cpanm --quiet --notest Net::AMQP
