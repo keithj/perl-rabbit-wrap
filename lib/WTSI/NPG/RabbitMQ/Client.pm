@@ -4,6 +4,7 @@ package WTSI::NPG::RabbitMQ::Client;
 
 use AnyEvent::RabbitMQ;
 use AnyEvent::Strict;
+use Data::Dump qw(dump);
 use Moose;
 
 with 'WTSI::NPG::RabbitMQ::Loggable';
@@ -11,13 +12,16 @@ with 'WTSI::NPG::RabbitMQ::Loggable';
 our @HANDLED_BROKER_METHODS = qw(is_open server_properties verbose);
 
 # Named arguments used in this API
+our $ARGUMENTS_ARG    = 'arguments';
 our $BODY_ARG         = 'body';
 our $CHANNEL_ARG      = 'channel';
 our $CONDVAR_ARG      = 'cond';
 our $CONSUMER_TAG_ARG = 'consumer_tag';
+our $DESTINATION_ARG  = 'destination';
 our $DURABLE_ARG      = 'durable';
 our $EXCHANGE_ARG     = 'exchange';
 our $EXCLUSIVE_ARG    = 'exclusive';
+our $HEADERS_ARG      = 'headers';
 our $IMMEDIATE_ARG    = 'immediate';
 our $MANDATORY_ARG    = 'mandatory';
 our $NAME_ARG         = 'name';
@@ -25,6 +29,7 @@ our $NO_ACK_ARG       = 'no_ack';
 our $PASSIVE_ARG      = 'passive';
 our $QUEUE_ARG        = 'queue';
 our $ROUTING_KEY_ARG  = 'routing_key';
+our $SOURCE_ARG       = 'source';
 our $TYPE_ARG         = 'type';
 
 has 'broker' =>
@@ -173,15 +178,17 @@ around 'connect' => sub { _maybe_sync('connect', @_) };
 
 sub connect {
   my ($self, %args) = @_;
-  my $host    = $args{host};
-  my $port    = $args{port};
-  my $vhost   = $args{vhost};
-  my $user    = $args{user};
-  my $pass    = $args{pass};
-  my $timeout = $args{timeout};
-  my $tls     = $args{tls};
-  my $tune    = $args{tune};
-  my $cv      = $args{cond};
+  my $host    = delete $args{host};
+  my $port    = delete $args{port};
+  my $vhost   = delete $args{vhost};
+  my $user    = delete $args{user};
+  my $pass    = delete $args{pass};
+  my $timeout = delete $args{timeout};
+  my $tls     = delete $args{tls};
+  my $tune    = delete $args{tune};
+  my $cv      = delete $args{cond};
+
+  $self->_check_args(%args);
 
   defined $host or $self->logconfess("The host argument was undefined");
   $host or $self->logconfess("The host argument was empty");
@@ -246,7 +253,9 @@ around 'disconnect' => sub { _maybe_sync('disconnect', @_) };
 
 sub disconnect {
   my ($self, %args) = @_;
-  my $cv = $args{cond};
+  my $cv = delete $args{cond};
+
+  $self->_check_args(%args);
 
   $self->broker->close
     (on_success => sub { $self->call_disconnect_handler($cv) },
@@ -275,8 +284,10 @@ around 'open_channel' => sub { _maybe_sync('open_channel', @_) };
 
 sub open_channel {
   my ($self, %args) = @_;
-  my $name = $args{$NAME_ARG};
-  my $cv   = $args{$CONDVAR_ARG};
+  my $name = delete $args{$NAME_ARG};
+  my $cv   = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The name argument was undefined");
   $name or $self->logconfess("The name argument was empty");
@@ -311,8 +322,10 @@ around 'close_channel' => sub { _maybe_sync('close_channel', @_) };
 
 sub close_channel {
   my ($self, %args) = @_;
-  my $name = $args{$NAME_ARG};
-  my $cv   = $args{$CONDVAR_ARG};
+  my $name = delete $args{$NAME_ARG};
+  my $cv   = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The name argument was undefined");
   $name or $self->logconfess("The name argument was empty");
@@ -350,12 +363,14 @@ around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
 
 sub declare_exchange {
   my ($self, %args) = @_;
-  my $name    = $args{$NAME_ARG};
-  my $cname   = $args{$CHANNEL_ARG};
-  my $type    = $args{$TYPE_ARG};
-  my $durable = $args{$DURABLE_ARG};
-  my $passive = $args{$PASSIVE_ARG};
-  my $cv      = $args{$CONDVAR_ARG};
+  my $name    = delete $args{$NAME_ARG};
+  my $cname   = delete $args{$CHANNEL_ARG};
+  my $type    = delete $args{$TYPE_ARG};
+  my $durable = delete $args{$DURABLE_ARG};
+  my $passive = delete $args{$PASSIVE_ARG};
+  my $cv      = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -376,6 +391,86 @@ sub declare_exchange {
      passive    => $passive,
      on_success => sub {
        $self->debug("Declared exchange '$name' on channel '$cname'");
+       $cv->send($self);
+     },
+     on_failure => sub { $self->call_error_handler($cv, @_) });
+
+  return $self;
+}
+
+around 'bind_exchange' => sub { _maybe_sync('bind_exchange', @_) };
+
+sub bind_exchange {
+  my ($self, %args) = @_;
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
+
+  defined $source or
+    $self->logconfess("The $SOURCE_ARG argument was undefined");
+  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
+
+  defined $dest or
+    $self->logconfess("The $DESTINATION_ARG argument was undefined");
+  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
+
+  defined $cname or
+    $self->logconfess("The $CHANNEL_ARG argument was undefined");
+  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+
+  $route ||= '';
+
+  my $channel = $self->channel($cname);
+  $channel->bind_exchange
+    (source      => $source,
+     destination => $dest,
+     on_success => sub {
+       $self->debug("Bound exchange '$source' to '$dest' with ",
+                    "routing key '$route' on channel '$cname'");
+       $cv->send($self);
+     },
+     on_failure => sub { $self->call_error_handler($cv, @_) });
+
+  return $self;
+}
+
+around 'unbind_exchange' => sub { _maybe_sync('unbind_exchange', @_) };
+
+sub unbind_exchange {
+  my ($self, %args) = @_;
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
+
+  defined $source or
+    $self->logconfess("The $SOURCE_ARG argument was undefined");
+  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
+
+  defined $dest or
+    $self->logconfess("The $DESTINATION_ARG argument was undefined");
+  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
+
+  defined $cname or
+    $self->logconfess("The $CHANNEL_ARG argument was undefined");
+  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+
+  $route ||= '';
+
+  my $channel = $self->channel($cname);
+  $channel->unbind_exchange
+    (source      => $source,
+     destination => $dest,
+     on_success => sub {
+        $self->debug("Unound exchange '$source' from '$dest' with ",
+                     "routing key '$route' on channel '$cname'");
        $cv->send($self);
      },
      on_failure => sub { $self->call_error_handler($cv, @_) });
@@ -404,9 +499,11 @@ around 'delete_exchange' => sub { _maybe_sync('delete_exchange', @_) };
 
 sub delete_exchange {
   my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
+  my $name  = delete $args{$NAME_ARG};
+  my $cname = delete $args{$CHANNEL_ARG};
+  my $cv    = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -450,12 +547,14 @@ around 'declare_queue' => sub { _maybe_sync('declare_queue', @_) };
 
 sub declare_queue {
   my ($self, %args) = @_;
-  my $name     = $args{$NAME_ARG};
-  my $cname    = $args{$CHANNEL_ARG};
-  my $durable  = $args{$DURABLE_ARG};
-  my $passive  = $args{$PASSIVE_ARG};
-  my $excusive = $args{$EXCLUSIVE_ARG};
-  my $cv       = $args{$CONDVAR_ARG};
+  my $name     = delete $args{$NAME_ARG};
+  my $cname    = delete $args{$CHANNEL_ARG};
+  my $durable  = delete $args{$DURABLE_ARG};
+  my $passive  = delete $args{$PASSIVE_ARG};
+  my $excusive = delete $args{$EXCLUSIVE_ARG};
+  my $cv       = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $cname or
     $self->logconfess("The $CHANNEL_ARG argument was undefined");
@@ -483,6 +582,142 @@ sub declare_queue {
   return $name;
 }
 
+=head2 bind_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               source      => <exchange name>,
+               destination => <queue name>,
+               routing_key => <routing key>,
+               arguments   => <bind arguments e.g. header matching>
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->bind_queue(source      => 'test',
+                                           destination => 'test',
+                                           routing_key => '',
+                                           channel     => 'test');
+
+  Description: Bind a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
+around 'bind_queue' => sub { _maybe_sync('bind_queue', @_) };
+
+sub bind_queue {
+  my ($self, %args) = @_;
+  my $dest      = delete $args{$DESTINATION_ARG};
+  my $route     = delete $args{$ROUTING_KEY_ARG};
+  my $source    = delete $args{$SOURCE_ARG};
+  my $arguments = delete $args{$ARGUMENTS_ARG};
+  my $cname     = delete $args{$CHANNEL_ARG};
+  my $cv        = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
+
+  defined $source or
+    $self->logconfess("The $SOURCE_ARG argument was undefined");
+  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
+
+  defined $dest or
+    $self->logconfess("The $DESTINATION_ARG argument was undefined");
+  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
+
+  defined $cname or
+    $self->logconfess("The $CHANNEL_ARG argument was undefined");
+  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+
+ defined $arguments and
+   (ref $arguments eq 'HASH' or
+     $self->logconfess("The $ARGUMENTS_ARG argument was not a HashRef"));
+
+  $route     ||= '';
+  $source    ||= '';
+  $arguments ||= {};
+
+  $self->channel($cname)->bind_queue
+    (queue       => $dest,
+     exchange    => $source,
+     routing_key => $route,
+     arguments   => $arguments,
+     on_success => sub {
+       $self->debug("Bound queue '$dest' to exchange '$source' with ",
+                    "routing key '$route' and arguments ", dump($arguments),
+                    " on channel '$cname'");
+       $cv->send($self);
+     },
+     on_failure => sub { $self->call_error_handler($cv, @_) });
+
+  return $self;
+}
+
+=head2 unbind_queue
+
+  Arg [1] :    Arguments hash. Valid key/value pairs are:
+
+               source      => <exchange name>,
+               destination => <queue name>,
+               routing_key => <routing key>,
+               channel     => <channel name>,
+               cond        => <AnyEvent::CondVar on which to synchronize>
+
+  Example :    my $c = $client->unbind_queue(source      => 'test',
+                                             exchange    => 'test',
+                                             routing_key => '',
+                                             channel     => 'test');
+
+  Description: Unbind a queue on a RabbitMQ server. Call the
+               error_handler on failure.
+  Returntype : WTSI::NPG::RabbitMQ::Client
+
+=cut
+
+around 'unbind_queue' => sub { _maybe_sync('unbind_queue', @_) };
+
+sub unbind_queue {
+  my ($self, %args) = @_;
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
+
+  defined $source or
+    $self->logconfess("The $SOURCE_ARG argument was undefined");
+  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
+
+  defined $dest or
+    $self->logconfess("The $DESTINATION_ARG argument was undefined");
+  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
+
+  defined $route or
+    $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
+  $route or $self->logconfess("The $ROUTING_KEY_ARG argument was empty");
+
+  defined $cname or
+    $self->logconfess("The $CHANNEL_ARG argument was undefined");
+  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+
+  $source ||= '';
+
+  $self->channel($cname)->unbind_queue
+    (queue       => $dest,
+     exchange    => $source,
+     routing_key => $route,
+     on_success => sub {
+       $self->debug("Unbound queue '$dest' from exchange '$source' with ",
+                    "routing key '$route' on channel '$cname'");
+       $cv->send($self);
+     },
+     on_failure => sub { $self->call_error_handler($cv, @_) });
+
+  return $self;
+}
+
 =head2 delete_queue
 
   Arg [1] :    Arguments hash. Valid key/value pairs are:
@@ -504,9 +739,11 @@ around 'delete_queue' => sub { _maybe_sync('delete_queue', @_) };
 
 sub delete_queue {
   my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
+  my $name  = delete $args{$NAME_ARG};
+  my $cname = delete $args{$CHANNEL_ARG};
+  my $cv    = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -526,139 +763,20 @@ sub delete_queue {
   return $self;
 }
 
-=head2 bind_queue
-
-  Arg [1] :    Arguments hash. Valid key/value pairs are:
-
-               name        => <queue name>,
-               routing_key => <routing key>,
-               exchange    => <exchange name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
-
-  Example :    my $c = $client->bind_queue(name        => 'test',
-                                           routing_key => 'test',
-                                           exchange    => '',
-                                           channel     => 'test');
-
-  Description: Bind a queue on a RabbitMQ server. Call the
-               error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
-
-=cut
-
-around 'bind_queue' => sub { _maybe_sync('bind_queue', @_) };
-
-sub bind_queue {
-  my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $route = $args{$ROUTING_KEY_ARG};
-  my $ename = $args{$EXCHANGE_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
-
-  defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
-  $name or $self->logconfess("The $NAME_ARG argument was empty");
-
-  defined $route or
-    $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
-  $route or $self->logconfess("The $ROUTING_KEY_ARG argument was empty");
-
-  defined $ename or
-    $self->logconfess("The $EXCHANGE_ARG argument was undefined");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $ename ||= '';
-
-  $self->channel($cname)->bind_queue
-    (queue       => $name,
-     exchange    => $ename,
-     routing_key => $route,
-     on_success => sub {
-       $self->debug("Bound queue '$name' to exchange '$ename' with ",
-                    "routing key '$route' on channel '$cname'");
-       $cv->send($self);
-     },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
-
-  return $self;
-}
-
-=head2 unbind_queue
-
-  Arg [1] :    Arguments hash. Valid key/value pairs are:
-
-               name        => <queue name>,
-               routing_key => <routing key>,
-               exchange    => <exchange name>,
-               channel     => <channel name>,
-               cond        => <AnyEvent::CondVar on which to synchronize>
-
-  Example :    my $c = $client->unbind_queue(name        => 'test',
-                                             routing_key => 'test',
-                                             exchange    => '',
-                                             channel     => 'test');
-
-  Description: Unbind a queue on a RabbitMQ server. Call the
-               error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
-
-=cut
-
-around 'unbind_queue' => sub { _maybe_sync('unbind_queue', @_) };
-
-sub unbind_queue {
-  my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $route = $args{$ROUTING_KEY_ARG};
-  my $ename = $args{$EXCHANGE_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
-
-  defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
-  $name or $self->logconfess("The $NAME_ARG argument was empty");
-
-  defined $route or
-    $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
-  $route or $self->logconfess("The $ROUTING_KEY_ARG argument was empty");
-
-  defined $ename or
-    $self->logconfess("The $EXCHANGE_ARG argument was undefined");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $ename ||= '';
-
-  $self->channel($cname)->unbind_queue
-    (queue       => $name,
-     exchange    => $ename,
-     routing_key => $route,
-     on_success => sub {
-       $self->debug("Unbound queue '$name' from exchange '$ename' with ",
-                    "routing key '$route' on channel '$cname'");
-       $cv->send($self);
-     },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
-
-  return $self;
-}
-
 around 'publish' => sub { _maybe_sync('publish', @_) };
 
 sub publish {
   my ($self, %args) = @_;
-  my $route     = $args{$ROUTING_KEY_ARG};
-  my $ename     = $args{$EXCHANGE_ARG};
-  my $cname     = $args{$CHANNEL_ARG};
-  my $body      = $args{$BODY_ARG};
-  my $immediate = $args{$IMMEDIATE_ARG};
-  my $mandatory = $args{$MANDATORY_ARG};
-  my $cv        = $args{$CONDVAR_ARG};
+  my $route     = delete $args{$ROUTING_KEY_ARG};
+  my $ename     = delete $args{$EXCHANGE_ARG};
+  my $cname     = delete $args{$CHANNEL_ARG};
+  my $headers   = delete $args{$HEADERS_ARG};
+  my $body      = delete $args{$BODY_ARG};
+  my $immediate = delete $args{$IMMEDIATE_ARG};
+  my $mandatory = delete $args{$MANDATORY_ARG};
+  my $cv        = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $route or
     $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
@@ -673,13 +791,16 @@ sub publish {
 
   defined $body or $self->logconfess("The $BODY_ARG argument was undefined");
 
+  $headers ||= {};
+
   $self->channel($cname)->publish
     (exchange    => $ename,
      routing_key => $route,
+     headers     => {headers => $headers}, # Paper over this extra hash level
      body        => $body,
      immediate   => $immediate,
      mandatory   => $mandatory);
-  $self->call_publish_handler($body, $route, $cv);
+  $self->call_publish_handler($headers, $body, $route, $cv);
 
   return $self;
 }
@@ -688,11 +809,13 @@ around 'consume' => sub { _maybe_sync('consume', @_) };
 
 sub consume {
   my ($self, %args) = @_;
-  my $queue        = $args{$QUEUE_ARG};
-  my $cname        = $args{$CHANNEL_ARG};
-  my $no_ack       = $args{$NO_ACK_ARG};
-  my $consumer_tag = $args{$CONSUMER_TAG_ARG};
-  my $cv           = $args{$CONDVAR_ARG};
+  my $queue        = delete $args{$QUEUE_ARG};
+  my $cname        = delete $args{$CHANNEL_ARG};
+  my $no_ack       = delete $args{$NO_ACK_ARG};
+  my $consumer_tag = delete $args{$CONSUMER_TAG_ARG};
+  my $cv           = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $queue or $self->logconfess("The $QUEUE_ARG argument was undefined");
   $queue or $self->logconfess("The $QUEUE_ARG argument was empty");
@@ -796,13 +919,13 @@ after 'call_close_channel_handler' => sub {
 };
 
 sub call_publish_handler {
-  my ($self, $message, $route, $cv) = @_;
+  my ($self, $headers, $body, $route, $cv) = @_;
 
-  $self->publish_handler->($self, $message, $route);
+  $self->publish_handler->($self, $headers, $body, $route);
 }
 
 after 'call_publish_handler' => sub {
-  my ($self, $body, $route, $cv) = @_;
+  my ($self, $headers, $body, $route, $cv) = @_;
 
   defined $cv or $self->logconfess("The cv argument was not defined");
   $cv->send($self);
@@ -814,8 +937,7 @@ sub call_consume_handler {
   my ($self, $channel_name, $no_ack, $cv, @args) = @_;
   my ($response) = @args;
 
-  my $payload = $response->{body}->to_raw_payload;
-  $self->consume_handler->($payload);
+  $self->consume_handler->($response);
 }
 
 after 'call_consume_handler' => sub {
@@ -887,6 +1009,21 @@ after 'call_error_handler' => sub {
   $self->debug("Called error_handler");
 };
 
+sub _check_args {
+  my ($self, @args) = @_;
+  if (scalar @args % 2 == 1) {
+    $self->warn("Odd number of arguments in ", dump(\@args));
+    pop @args;
+  }
+
+  my ($package, $filename, $line, $sub) = caller(1);
+
+  if (@args) {
+    my %args = @args;
+    $self->warn("Unexpected arguments passed to $sub: ", dump(\%args));
+  }
+}
+
 sub _make_default_handler {
   my ($self, @args) = @_;
 
@@ -935,6 +1072,7 @@ sub _is_condvar {
 
   return defined $arg && ref $arg && (ref $arg eq 'AnyEvent::CondVar');
 }
+
 
 __PACKAGE__->meta->make_immutable;
 

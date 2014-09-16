@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use base qw(Test::Class);
-use Test::More tests => 35;
+use Test::More tests => 41;
 use Test::Exception;
 
 use Log::Log4perl;
@@ -87,6 +87,42 @@ sub declare_delete_exchange : Test(2) {
   $client->disconnect;
 }
 
+sub bind_unbind_exchange : Test(6) {
+  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $channel_name  = 'channel.' . $$;
+  my $exchange_name = 'exchange.' . $$;
+
+  my $exchange_in  = $exchange_name . '.in';
+  my $exchange_out = $exchange_name . '.out';
+
+  $client->connect(@credentials);
+  $client->open_channel(name => $channel_name);
+
+  ok($client->declare_exchange(name    => $exchange_in,
+                               channel => $channel_name,
+                               durable => 1), 'Exchange in declared');
+  ok($client->declare_exchange(name    => $exchange_out,
+                               channel => $channel_name,
+                               durable => 1), 'Exchange out declared');
+
+  ok($client->bind_exchange(channel     => $channel_name,
+                            source      => $exchange_in,
+                            destination => $exchange_out));
+  ok($client->unbind_exchange(channel     => $channel_name,
+                              source      => $exchange_in,
+                              destination => $exchange_out));
+
+  ok($client->delete_exchange
+     (name    => $exchange_in,
+      channel => $channel_name), 'Exchange in deleted');
+  ok($client->delete_exchange
+     (name    => $exchange_out,
+      channel => $channel_name), 'Exchange out deleted');
+
+  $client->close_channel(name => $channel_name);
+  $client->disconnect;
+}
+
 sub declare_delete_queue : Test(4) {
   my $client = WTSI::NPG::RabbitMQ::Client->new;
   my $channel_name = 'channel.' . $$;
@@ -105,7 +141,7 @@ sub declare_delete_queue : Test(4) {
   ok($anon_queue, 'Anonymous queue declared');
   ok($client->delete_queue(name    => $anon_queue,
                            channel => $channel_name),
-     'Anonymouse queue deleted');
+     'Anonymous queue deleted');
 
   $client->close_channel(name => $channel_name);
   $client->disconnect;
@@ -126,13 +162,13 @@ sub bind_unbind_queue : Test(2) {
   $client->declare_queue(name    => $queue_name,
                          channel => $channel_name);
 
-  ok($client->bind_queue(name        => $queue_name,
+  ok($client->bind_queue(source      => $exchange_name,
+                         destination => $queue_name,
                          routing_key => $routing_key,
-                         exchange    => $exchange_name,
                          channel     => $channel_name), 'Queue bound');
-  ok($client->unbind_queue(name        => $queue_name,
+  ok($client->unbind_queue(source      => $exchange_name,
+                           destination => $queue_name,
                            routing_key => $routing_key,
-                           exchange    => $exchange_name,
                            channel     => $channel_name), 'Queue unbound');
 
   $client->delete_queue(name    => $queue_name,
@@ -157,9 +193,9 @@ sub publish_consume : Test(2) {
                                channel => $channel_name);
   $publisher->declare_queue(name    => $queue_name,
                             channel => $channel_name);
-  $publisher->bind_queue(name        => $queue_name,
+  $publisher->bind_queue(source      => $exchange_name,
+                         destination => $queue_name,
                          routing_key => $routing_key,
-                         exchange    => $exchange_name,
                          channel     => $channel_name);
 
   # Publish $total messages with one client and then consume them with
@@ -177,6 +213,7 @@ sub publish_consume : Test(2) {
     $publisher->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
+                        headers     => {test_id => $$},
                         body        => "Hello $i",
                         mandatory   => 1);
     # Count the messages out
@@ -207,9 +244,9 @@ sub publish_consume : Test(2) {
   cmp_ok($num_published, '==', $total, 'Number published');
   cmp_ok($num_consumed,  '==', $total, 'Number consumed');
 
-  $publisher->unbind_queue(name        => $queue_name,
+  $publisher->unbind_queue(source      => $exchange_name,
+                           destination => $queue_name,
                            routing_key => $routing_key,
-                           exchange    => $exchange_name,
                            channel     => $channel_name);
   $publisher->delete_queue(name    => $queue_name,
                            channel => $channel_name);
@@ -233,9 +270,9 @@ sub publish_consume_no_ack : Test(2) {
                                channel => $channel_name);
   $publisher->declare_queue(name    => $queue_name,
                             channel => $channel_name);
-  $publisher->bind_queue(name        => $queue_name,
+  $publisher->bind_queue(source      => $exchange_name,
+                         destination => $queue_name,
                          routing_key => $routing_key,
-                         exchange    => $exchange_name,
                          channel     => $channel_name);
 
   # Publish $total messages with one client and then consume them with
@@ -254,6 +291,7 @@ sub publish_consume_no_ack : Test(2) {
     $publisher->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
+                        headers     => {test_id => $$},
                         body        => "Hello $i",
                         mandatory   => 1);
     # Count the messages out
@@ -306,9 +344,9 @@ sub publish_consume_no_ack : Test(2) {
   cmp_ok($num_published, '==', $total, 'Number published');
   cmp_ok($num_consumed,  '==', $total * 2, 'Number consumed');
 
-  $publisher->unbind_queue(name        => $queue_name,
+  $publisher->unbind_queue(source      => $exchange_name,
+                           destination => $queue_name,
                            routing_key => $routing_key,
-                           exchange    => $exchange_name,
                            channel     => $channel_name);
   $publisher->delete_queue(name    => $queue_name,
                            channel => $channel_name);
