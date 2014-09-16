@@ -178,15 +178,17 @@ around 'connect' => sub { _maybe_sync('connect', @_) };
 
 sub connect {
   my ($self, %args) = @_;
-  my $host    = $args{host};
-  my $port    = $args{port};
-  my $vhost   = $args{vhost};
-  my $user    = $args{user};
-  my $pass    = $args{pass};
-  my $timeout = $args{timeout};
-  my $tls     = $args{tls};
-  my $tune    = $args{tune};
-  my $cv      = $args{cond};
+  my $host    = delete $args{host};
+  my $port    = delete $args{port};
+  my $vhost   = delete $args{vhost};
+  my $user    = delete $args{user};
+  my $pass    = delete $args{pass};
+  my $timeout = delete $args{timeout};
+  my $tls     = delete $args{tls};
+  my $tune    = delete $args{tune};
+  my $cv      = delete $args{cond};
+
+  $self->_check_args(%args);
 
   defined $host or $self->logconfess("The host argument was undefined");
   $host or $self->logconfess("The host argument was empty");
@@ -251,7 +253,9 @@ around 'disconnect' => sub { _maybe_sync('disconnect', @_) };
 
 sub disconnect {
   my ($self, %args) = @_;
-  my $cv = $args{cond};
+  my $cv = delete $args{cond};
+
+  $self->_check_args(%args);
 
   $self->broker->close
     (on_success => sub { $self->call_disconnect_handler($cv) },
@@ -280,8 +284,10 @@ around 'open_channel' => sub { _maybe_sync('open_channel', @_) };
 
 sub open_channel {
   my ($self, %args) = @_;
-  my $name = $args{$NAME_ARG};
-  my $cv   = $args{$CONDVAR_ARG};
+  my $name = delete $args{$NAME_ARG};
+  my $cv   = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The name argument was undefined");
   $name or $self->logconfess("The name argument was empty");
@@ -316,8 +322,10 @@ around 'close_channel' => sub { _maybe_sync('close_channel', @_) };
 
 sub close_channel {
   my ($self, %args) = @_;
-  my $name = $args{$NAME_ARG};
-  my $cv   = $args{$CONDVAR_ARG};
+  my $name = delete $args{$NAME_ARG};
+  my $cv   = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The name argument was undefined");
   $name or $self->logconfess("The name argument was empty");
@@ -355,12 +363,14 @@ around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
 
 sub declare_exchange {
   my ($self, %args) = @_;
-  my $name    = $args{$NAME_ARG};
-  my $cname   = $args{$CHANNEL_ARG};
-  my $type    = $args{$TYPE_ARG};
-  my $durable = $args{$DURABLE_ARG};
-  my $passive = $args{$PASSIVE_ARG};
-  my $cv      = $args{$CONDVAR_ARG};
+  my $name    = delete $args{$NAME_ARG};
+  my $cname   = delete $args{$CHANNEL_ARG};
+  my $type    = delete $args{$TYPE_ARG};
+  my $durable = delete $args{$DURABLE_ARG};
+  my $passive = delete $args{$PASSIVE_ARG};
+  my $cv      = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -392,11 +402,13 @@ around 'bind_exchange' => sub { _maybe_sync('bind_exchange', @_) };
 
 sub bind_exchange {
   my ($self, %args) = @_;
-  my $source = $args{$SOURCE_ARG};
-  my $dest   = $args{$DESTINATION_ARG};
-  my $route  = $args{$ROUTING_KEY_ARG};
-  my $cname  = $args{$CHANNEL_ARG};
-  my $cv     = $args{$CONDVAR_ARG};
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $source or
     $self->logconfess("The $SOURCE_ARG argument was undefined");
@@ -430,11 +442,13 @@ around 'unbind_exchange' => sub { _maybe_sync('unbind_exchange', @_) };
 
 sub unbind_exchange {
   my ($self, %args) = @_;
-  my $source = $args{$SOURCE_ARG};
-  my $dest   = $args{$DESTINATION_ARG};
-  my $route  = $args{$ROUTING_KEY_ARG};
-  my $cname  = $args{$CHANNEL_ARG};
-  my $cv     = $args{$CONDVAR_ARG};
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $source or
     $self->logconfess("The $SOURCE_ARG argument was undefined");
@@ -485,9 +499,11 @@ around 'delete_exchange' => sub { _maybe_sync('delete_exchange', @_) };
 
 sub delete_exchange {
   my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
+  my $name  = delete $args{$NAME_ARG};
+  my $cname = delete $args{$CHANNEL_ARG};
+  my $cv    = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -531,12 +547,14 @@ around 'declare_queue' => sub { _maybe_sync('declare_queue', @_) };
 
 sub declare_queue {
   my ($self, %args) = @_;
-  my $name     = $args{$NAME_ARG};
-  my $cname    = $args{$CHANNEL_ARG};
-  my $durable  = $args{$DURABLE_ARG};
-  my $passive  = $args{$PASSIVE_ARG};
-  my $excusive = $args{$EXCLUSIVE_ARG};
-  my $cv       = $args{$CONDVAR_ARG};
+  my $name     = delete $args{$NAME_ARG};
+  my $cname    = delete $args{$CHANNEL_ARG};
+  my $durable  = delete $args{$DURABLE_ARG};
+  my $passive  = delete $args{$PASSIVE_ARG};
+  my $excusive = delete $args{$EXCLUSIVE_ARG};
+  my $cv       = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $cname or
     $self->logconfess("The $CHANNEL_ARG argument was undefined");
@@ -590,12 +608,14 @@ around 'bind_queue' => sub { _maybe_sync('bind_queue', @_) };
 
 sub bind_queue {
   my ($self, %args) = @_;
-  my $dest      = $args{$DESTINATION_ARG};
-  my $route     = $args{$ROUTING_KEY_ARG};
-  my $source    = $args{$SOURCE_ARG};
-  my $arguments = $args{$ARGUMENTS_ARG};
-  my $cname     = $args{$CHANNEL_ARG};
-  my $cv        = $args{$CONDVAR_ARG};
+  my $dest      = delete $args{$DESTINATION_ARG};
+  my $route     = delete $args{$ROUTING_KEY_ARG};
+  my $source    = delete $args{$SOURCE_ARG};
+  my $arguments = delete $args{$ARGUMENTS_ARG};
+  my $cname     = delete $args{$CHANNEL_ARG};
+  my $cv        = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $source or
     $self->logconfess("The $SOURCE_ARG argument was undefined");
@@ -658,11 +678,13 @@ around 'unbind_queue' => sub { _maybe_sync('unbind_queue', @_) };
 
 sub unbind_queue {
   my ($self, %args) = @_;
-  my $source = $args{$SOURCE_ARG};
-  my $dest   = $args{$DESTINATION_ARG};
-  my $route  = $args{$ROUTING_KEY_ARG};
-  my $cname  = $args{$CHANNEL_ARG};
-  my $cv     = $args{$CONDVAR_ARG};
+  my $source = delete $args{$SOURCE_ARG};
+  my $dest   = delete $args{$DESTINATION_ARG};
+  my $route  = delete $args{$ROUTING_KEY_ARG};
+  my $cname  = delete $args{$CHANNEL_ARG};
+  my $cv     = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $source or
     $self->logconfess("The $SOURCE_ARG argument was undefined");
@@ -717,9 +739,11 @@ around 'delete_queue' => sub { _maybe_sync('delete_queue', @_) };
 
 sub delete_queue {
   my ($self, %args) = @_;
-  my $name  = $args{$NAME_ARG};
-  my $cname = $args{$CHANNEL_ARG};
-  my $cv    = $args{$CONDVAR_ARG};
+  my $name  = delete $args{$NAME_ARG};
+  my $cname = delete $args{$CHANNEL_ARG};
+  my $cv    = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
   $name or $self->logconfess("The $NAME_ARG argument was empty");
@@ -743,14 +767,16 @@ around 'publish' => sub { _maybe_sync('publish', @_) };
 
 sub publish {
   my ($self, %args) = @_;
-  my $route     = $args{$ROUTING_KEY_ARG};
-  my $ename     = $args{$EXCHANGE_ARG};
-  my $cname     = $args{$CHANNEL_ARG};
-  my $headers   = $args{$HEADERS_ARG};
-  my $body      = $args{$BODY_ARG};
-  my $immediate = $args{$IMMEDIATE_ARG};
-  my $mandatory = $args{$MANDATORY_ARG};
-  my $cv        = $args{$CONDVAR_ARG};
+  my $route     = delete $args{$ROUTING_KEY_ARG};
+  my $ename     = delete $args{$EXCHANGE_ARG};
+  my $cname     = delete $args{$CHANNEL_ARG};
+  my $headers   = delete $args{$HEADERS_ARG};
+  my $body      = delete $args{$BODY_ARG};
+  my $immediate = delete $args{$IMMEDIATE_ARG};
+  my $mandatory = delete $args{$MANDATORY_ARG};
+  my $cv        = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $route or
     $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
@@ -783,11 +809,13 @@ around 'consume' => sub { _maybe_sync('consume', @_) };
 
 sub consume {
   my ($self, %args) = @_;
-  my $queue        = $args{$QUEUE_ARG};
-  my $cname        = $args{$CHANNEL_ARG};
-  my $no_ack       = $args{$NO_ACK_ARG};
-  my $consumer_tag = $args{$CONSUMER_TAG_ARG};
-  my $cv           = $args{$CONDVAR_ARG};
+  my $queue        = delete $args{$QUEUE_ARG};
+  my $cname        = delete $args{$CHANNEL_ARG};
+  my $no_ack       = delete $args{$NO_ACK_ARG};
+  my $consumer_tag = delete $args{$CONSUMER_TAG_ARG};
+  my $cv           = delete $args{$CONDVAR_ARG};
+
+  $self->_check_args(%args);
 
   defined $queue or $self->logconfess("The $QUEUE_ARG argument was undefined");
   $queue or $self->logconfess("The $QUEUE_ARG argument was empty");
@@ -981,6 +1009,21 @@ after 'call_error_handler' => sub {
   $self->debug("Called error_handler");
 };
 
+sub _check_args {
+  my ($self, @args) = @_;
+  if (scalar @args % 2 == 1) {
+    $self->warn("Odd number of arguments in ", dump(\@args));
+    pop @args;
+  }
+
+  my ($package, $filename, $line, $sub) = caller(1);
+
+  if (@args) {
+    my %args = @args;
+    $self->warn("Unexpected arguments passed to $sub: ", dump(\%args));
+  }
+}
+
 sub _make_default_handler {
   my ($self, @args) = @_;
 
@@ -1029,6 +1072,7 @@ sub _is_condvar {
 
   return defined $arg && ref $arg && (ref $arg eq 'AnyEvent::CondVar');
 }
+
 
 __PACKAGE__->meta->make_immutable;
 
