@@ -13,6 +13,7 @@ our @HANDLED_BROKER_METHODS = qw(is_open server_properties verbose);
 
 # Named arguments used in this API
 our $ARGUMENTS_ARG    = 'arguments';
+our $AUTO_DELETE_ARG  = 'auto_delete';
 our $BODY_ARG         = 'body';
 our $CHANNEL_ARG      = 'channel';
 our $CONDVAR_ARG      = 'cond';
@@ -348,7 +349,8 @@ sub close_channel {
                type    => <exchange type name, see AnyEvent::RabbitMQ>,
                durable => <durability flag, see AnyEvent::RabbitMQ>,
                passive => <passivity flag, see AnyEvent::RabbitMQ>,
-               cond    => <AnyEvent::CondVar on which to synchronize>
+               auto_delete => <auto delete flag, see AnyEvent::RabbitMQ>
+               cond        => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->declare_exchange(name    => 'test',
                                                  channel => 'test');
@@ -363,6 +365,7 @@ around 'declare_exchange' => sub { _maybe_sync('declare_exchange', @_) };
 
 sub declare_exchange {
   my ($self, %args) = @_;
+  my $delete  = delete $args{$AUTO_DELETE_ARG};
   my $name    = delete $args{$NAME_ARG};
   my $cname   = delete $args{$CHANNEL_ARG};
   my $type    = delete $args{$TYPE_ARG};
@@ -382,14 +385,16 @@ sub declare_exchange {
   $type    ||= 'direct';
   $durable ||= 0;
   $passive ||= 0;
+  $delete  ||= 0;
 
   my $channel = $self->channel($cname);
   $channel->declare_exchange
-    (exchange   => $name,
-     type       => $type,
-     durable    => $durable,
-     passive    => $passive,
-     on_success => sub {
+    (exchange    => $name,
+     type        => $type,
+     auto_delete => $delete,
+     durable     => $durable,
+     passive     => $passive,
+     on_success  => sub {
        $self->debug("Declared exchange '$name' on channel '$cname'");
        $cv->send($self);
      },
@@ -532,7 +537,8 @@ sub delete_exchange {
                durable   => <durability flag, see AnyEvent::RabbitMQ>,
                exclusive => <exclusivity flag, see AnyEvent::RabbitMQ>,
                passive   => <passivity flag, see AnyEvent::RabbitMQ>,
-               cond      => <AnyEvent::CondVar on which to synchronize>
+               auto_delete => <auto delete flag, see AnyEvent::RabbitMQ>
+               cond        => <AnyEvent::CondVar on which to synchronize>
 
   Example :    my $c = $client->declare_queue(name    => 'test',
                                               channel => 'test');
@@ -547,6 +553,7 @@ around 'declare_queue' => sub { _maybe_sync('declare_queue', @_) };
 
 sub declare_queue {
   my ($self, %args) = @_;
+  my $delete   = delete $args{$AUTO_DELETE_ARG};
   my $name     = delete $args{$NAME_ARG};
   my $cname    = delete $args{$CHANNEL_ARG};
   my $durable  = delete $args{$DURABLE_ARG};
@@ -563,11 +570,13 @@ sub declare_queue {
   $name    ||= '';
   $durable ||= 0;
   $passive ||= 0;
+  $delete  ||= 0;
 
   $self->channel($cname)->declare_queue
-    (queue      => $name,
-     durable    => $durable,
-     on_success => sub {
+    (queue       => $name,
+     durable     => $durable,
+     auto_delete => $delete,
+     on_success  => sub {
        my ($response) = @_;
        my $frame = $response->method_frame;
        my $msg = sprintf("Declared queue '%s' consumer count: %d, " .
@@ -796,7 +805,7 @@ sub publish {
   $self->channel($cname)->publish
     (exchange    => $ename,
      routing_key => $route,
-     headers     => {headers => $headers}, # Paper over this extra hash level
+     header      => {headers => $headers}, # Paper over this extra hash level
      body        => $body,
      immediate   => $immediate,
      mandatory   => $mandatory);
@@ -1072,7 +1081,6 @@ sub _is_condvar {
 
   return defined $arg && ref $arg && (ref $arg eq 'AnyEvent::CondVar');
 }
-
 
 __PACKAGE__->meta->make_immutable;
 
