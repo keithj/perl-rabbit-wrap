@@ -8,8 +8,9 @@ services:
   - rabbitmq
 
 env:
-  - ANYEVENT_VERSION="1.18"
-  - DNAP_UTILITIES_VERSION="0.4.1"
+  global:
+    - ANYEVENT_VERSION="1.18"
+    - DNAP_UTILITIES_VERSION="0.4.1"
 
 install:
   - cpanm --quiet --notest AnyEvent
