@@ -1,6 +1,6 @@
 use utf8;
 
-package WTSI::NPG::RabbitMQ::ClientTest;
+package WTSI::DNAP::RabbitMQ::ClientTest;
 
 use strict;
 use warnings;
@@ -13,9 +13,9 @@ use Log::Log4perl;
 
 Log::Log4perl::init('./etc/log4perl_tests.conf');
 
-BEGIN { use_ok('WTSI::NPG::RabbitMQ::Client'); }
+BEGIN { use_ok('WTSI::DNAP::RabbitMQ::Client'); }
 
-use WTSI::NPG::RabbitMQ::Client;
+use WTSI::DNAP::RabbitMQ::Client;
 
 our @credentials = (host  => 'localhost',
                     port  => 5672,
@@ -28,18 +28,18 @@ sub make_fixture : Test(setup) {
 }
 
 sub require : Test(1) {
-  require_ok('WTSI::NPG::RabbitMQ::Client');
+  require_ok('WTSI::DNAP::RabbitMQ::Client');
 }
 
 sub constructor : Test(1) {
-  new_ok('WTSI::NPG::RabbitMQ::Client', []);
+  new_ok('WTSI::DNAP::RabbitMQ::Client', []);
 }
 
 sub connect_disconnect : Test(4) {
   my $connect_calledback    = 0;
   my $disconnect_calledback = 0;
 
-  my $client = WTSI::NPG::RabbitMQ::Client->new
+  my $client = WTSI::DNAP::RabbitMQ::Client->new
     (connect_handler    => sub { $connect_calledback++ },
      disconnect_handler => sub { $disconnect_calledback++ });
 
@@ -54,7 +54,7 @@ sub open_close_channel : Test(9) {
   my $open_calledback  = 0;
   my $close_calledback = 0;
 
-  my $client = WTSI::NPG::RabbitMQ::Client->new
+  my $client = WTSI::DNAP::RabbitMQ::Client->new
     (open_channel_handler  => sub { $open_calledback++ },
      close_channel_handler => sub { $close_calledback++ });
   my $channel_name = 'channel.' . $$;
@@ -73,7 +73,7 @@ sub open_close_channel : Test(9) {
 }
 
 sub declare_delete_exchange : Test(2) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $client = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
 
@@ -88,7 +88,7 @@ sub declare_delete_exchange : Test(2) {
 }
 
 sub bind_unbind_exchange : Test(6) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $client = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
 
@@ -124,7 +124,7 @@ sub bind_unbind_exchange : Test(6) {
 }
 
 sub declare_delete_queue : Test(4) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $client = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name = 'channel.' . $$;
   my $queue_name   = 'queue.' . $$;
 
@@ -148,7 +148,7 @@ sub declare_delete_queue : Test(4) {
 }
 
 sub bind_unbind_queue : Test(2) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $client = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
   my $queue_name    = 'queue.' . $$;
@@ -181,7 +181,7 @@ sub bind_unbind_queue : Test(2) {
 }
 
 sub publish_consume : Test(2) {
-  my $publisher = WTSI::NPG::RabbitMQ::Client->new;
+  my $publisher = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
   my $queue_name    = 'queue.' . $$;
@@ -223,7 +223,7 @@ sub publish_consume : Test(2) {
 
   # Provide a consume_handler callback that counts the messages with
   # both an integer and an AnyEvent begin/end pair watcher
-  my $consumer = WTSI::NPG::RabbitMQ::Client->new
+  my $consumer = WTSI::DNAP::RabbitMQ::Client->new
     (consume_handler => sub {
        # Count the messages in
        $num_consumed++;
@@ -258,7 +258,7 @@ sub publish_consume : Test(2) {
 }
 
 sub publish_consume_no_ack : Test(2) {
-  my $publisher = WTSI::NPG::RabbitMQ::Client->new;
+  my $publisher = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name  = 'channel.' . $$;
   my $exchange_name = 'exchange.' . $$;
   my $queue_name    = 'queue.' . $$;
@@ -302,7 +302,7 @@ sub publish_consume_no_ack : Test(2) {
 
   # Provide a consume_handler callback that counts the messages with
   # both an integer and an AnyEvent begin/end pair watcher
-  my $consumer_ack_off = WTSI::NPG::RabbitMQ::Client->new
+  my $consumer_ack_off = WTSI::DNAP::RabbitMQ::Client->new
     (acking_enabled  => 0,
      consume_handler => sub {
        # Count the messages in
@@ -322,7 +322,7 @@ sub publish_consume_no_ack : Test(2) {
   $consumer_ack_off->disconnect;
 
   my $timer_ack = AnyEvent->timer(after => $timeout, cb => $cv_ack);
-  my $consumer_ack = WTSI::NPG::RabbitMQ::Client->new
+  my $consumer_ack = WTSI::DNAP::RabbitMQ::Client->new
     (acking_enabled  => 1,
      consume_handler => sub {
        # Count the messages in again
@@ -358,7 +358,7 @@ sub publish_consume_no_ack : Test(2) {
 }
 
 sub use_caller_condvar : Test(7) {
-  my $client = WTSI::NPG::RabbitMQ::Client->new;
+  my $client = WTSI::DNAP::RabbitMQ::Client->new;
   my $channel_name = 'channel.' . $$;
 
   my $cv = AnyEvent->condvar;

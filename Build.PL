@@ -9,7 +9,7 @@ use lib qw(lib t/lib);
 use WTSI::DNAP::Utilities::Build;
 
 my $build = WTSI::DNAP::Utilities::Build->new
-  (module_name   => 'WTSI::NPG::RabbitMQ',
+  (module_name   => 'WTSI::DNAP::RabbitMQ',
    dist_author   => ['Keith James <kdj@sanger.ac.uk>'],
    dist_abstract => 'AnyEvent::RabbitMQ Convenience Library',
    dist_version  => WTSI::DNAP::Utilities::Build->report_version,

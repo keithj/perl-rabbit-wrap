@@ -2,10 +2,10 @@
 Build.PL
 COPYING
 etc/log4perl_tests.conf
-lib/WTSI/NPG/RabbitMQ/Client.pm
+lib/WTSI/DNAP/RabbitMQ/Client.pm
 MANIFEST			This list of files
 README
 t/client.t
 t/critic.t
-t/lib/WTSI/NPG/RabbitMQ/ClientTest.pm
+t/lib/WTSI/DNAP/RabbitMQ/ClientTest.pm
 t/perlcriticrc

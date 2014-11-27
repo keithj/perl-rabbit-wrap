@@ -3,6 +3,6 @@ use utf8;
 use strict;
 use warnings;
 
-use WTSI::NPG::RabbitMQ::ClientTest;
+use WTSI::DNAP::RabbitMQ::ClientTest;
 
 Test::Class->runtests;
