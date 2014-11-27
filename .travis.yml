@@ -9,6 +9,7 @@ services:
 
 env:
   global:
+    - secure: O6OxErKM7oM74EZEBdyfA4ljkU3M4ekEZcjyMtyU1x/vOleBglRln3+RgWe/r2fhckr4kpUWQwcfaDFgNPy8dpii8H5ptpGFBOqdddudHo6Dj5czRBeGd6y3L6+j+SuId7F41eYJJj/dFIZJOD+AHa8QXQDVP9NjfZ/33H0zQ5Y=
     - ANYEVENT_VERSION="1.18"
     - DNAP_UTILITIES_VERSION="0.4.1"
 
@@ -35,3 +36,12 @@ script:
 after_success:
   - ./Build dist
   - export DIST_FILE=$(ls WTSI-NPG-RabbitMQ-*.tar.gz)
+
+deploy:
+  provider: releases
+  api-key: $GH_OAUTH
+  file: $DIST_FILE
+  skip_cleanup: true
+  on:
+    tags: true
+    all_branches: true
