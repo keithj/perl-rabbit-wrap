@@ -1,4 +1,3 @@
-use utf8;
 
 package WTSI::NPG::RabbitMQ::Client;
 
@@ -7,7 +6,7 @@ use AnyEvent::Strict;
 use Data::Dump qw(dump);
 use Moose;
 
-with 'WTSI::NPG::RabbitMQ::Loggable';
+our $VERSION = '';
 
 our @HANDLED_BROKER_METHODS = qw(is_open server_properties verbose);
 
@@ -32,6 +31,8 @@ our $QUEUE_ARG        = 'queue';
 our $ROUTING_KEY_ARG  = 'routing_key';
 our $SOURCE_ARG       = 'source';
 our $TYPE_ARG         = 'type';
+
+with 'WTSI::DNAP::Utilities::Loggable';
 
 has 'broker' =>
   (is       => 'rw',
@@ -190,18 +191,10 @@ sub connect {
   my $cv      = delete $args{cond};
 
   $self->_check_args(%args);
-
-  defined $host or $self->logconfess("The host argument was undefined");
-  $host or $self->logconfess("The host argument was empty");
-
-  defined $port or $self->logconfess("The port argument was undefined");
-  $port or $self->logconfess("The port argument was empty");
-
-  defined $vhost or $self->logconfess("The vhost argument was undefined");
-  $vhost or $self->logconfess("The vhost argument was empty");
-
-  defined $user or $self->logconfess("The user argument was undefined");
-  $user or $self->logconfess("The user argument was empty");
+  $self->_check_defined_not_empty('host',  $host);
+  $self->_check_defined_not_empty('port',  $port);
+  $self->_check_defined_not_empty('vhost', $vhost);
+  $self->_check_defined_not_empty('user',  $user);
 
   defined $pass or $self->logconfess("The pass argument was undefined");
 
@@ -289,9 +282,8 @@ sub open_channel {
   my $cv   = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($NAME_ARG, $name);
 
-  defined $name or $self->logconfess("The name argument was undefined");
-  $name or $self->logconfess("The name argument was empty");
   exists $self->channels->{$name} and
     $self->logconfess("A channel named '$name' exists already");
 
@@ -327,9 +319,8 @@ sub close_channel {
   my $cv   = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($NAME_ARG, $name);
 
-  defined $name or $self->logconfess("The name argument was undefined");
-  $name or $self->logconfess("The name argument was empty");
   exists $self->channels->{$name} or
     $self->logconfess("No channel named '$name' exists");
 
@@ -374,13 +365,8 @@ sub declare_exchange {
   my $cv      = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
-
-  defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
-  $name or $self->logconfess("The $NAME_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+  $self->_check_defined_not_empty($NAME_ARG,    $name);
+  $self->_check_defined_not_empty($CHANNEL_ARG, $cname);
 
   $type    ||= 'direct';
   $durable ||= 0;
@@ -414,20 +400,11 @@ sub bind_exchange {
   my $cv     = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($SOURCE_ARG,      $source);
+  $self->_check_defined_not_empty($DESTINATION_ARG, $dest);
+  $self->_check_defined_not_empty($CHANNEL_ARG,     $cname);
 
-  defined $source or
-    $self->logconfess("The $SOURCE_ARG argument was undefined");
-  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
-
-  defined $dest or
-    $self->logconfess("The $DESTINATION_ARG argument was undefined");
-  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $route ||= '';
+  $route ||= q{};
 
   my $channel = $self->channel($cname);
   $channel->bind_exchange
@@ -454,20 +431,11 @@ sub unbind_exchange {
   my $cv     = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($SOURCE_ARG,      $source);
+  $self->_check_defined_not_empty($DESTINATION_ARG, $dest);
+  $self->_check_defined_not_empty($CHANNEL_ARG,     $cname);
 
-  defined $source or
-    $self->logconfess("The $SOURCE_ARG argument was undefined");
-  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
-
-  defined $dest or
-    $self->logconfess("The $DESTINATION_ARG argument was undefined");
-  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $route ||= '';
+  $route ||= q{};
 
   my $channel = $self->channel($cname);
   $channel->unbind_exchange
@@ -509,13 +477,8 @@ sub delete_exchange {
   my $cv    = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
-
-  defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
-  $name or $self->logconfess("The $NAME_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+  $self->_check_defined_not_empty($NAME_ARG,    $name);
+  $self->_check_defined_not_empty($CHANNEL_ARG, $cname);
 
   $self->channel($cname)->delete_exchange
     (exchange   => $name,
@@ -562,12 +525,9 @@ sub declare_queue {
   my $cv       = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($CHANNEL_ARG, $cname);
 
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $name    ||= '';
+  $name    ||= q{};
   $durable ||= 0;
   $passive ||= 0;
   $delete  ||= 0;
@@ -579,10 +539,9 @@ sub declare_queue {
      on_success  => sub {
        my ($response) = @_;
        my $frame = $response->method_frame;
-       my $msg = sprintf("Declared queue '%s' consumer count: %d, " .
-                         "message count: %d on channel '$cname'",
-                         $frame->queue, $frame->consumer_count,
-                         $frame->message_count);
+       my $msg = sprintf "Declared queue '%s' consumer count: %d, " .
+         "message count: %d on channel '$cname'",
+         $frame->queue, $frame->consumer_count, $frame->message_count;
        $self->debug($msg);
        $cv->send($frame->queue);
      },
@@ -625,25 +584,16 @@ sub bind_queue {
   my $cv        = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($SOURCE_ARG,      $source);
+  $self->_check_defined_not_empty($DESTINATION_ARG, $dest);
+  $self->_check_defined_not_empty($CHANNEL_ARG,     $cname);
 
-  defined $source or
-    $self->logconfess("The $SOURCE_ARG argument was undefined");
-  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
-
-  defined $dest or
-    $self->logconfess("The $DESTINATION_ARG argument was undefined");
-  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
- defined $arguments and
-   (ref $arguments eq 'HASH' or
+  defined $arguments and
+    (ref $arguments eq 'HASH' or
      $self->logconfess("The $ARGUMENTS_ARG argument was not a HashRef"));
 
-  $route     ||= '';
-  $source    ||= '';
+  $route     ||= q{};
+  $source    ||= q{};
   $arguments ||= {};
 
   $self->channel($cname)->bind_queue
@@ -694,24 +644,12 @@ sub unbind_queue {
   my $cv     = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
+  $self->_check_defined_not_empty($SOURCE_ARG,      $source);
+  $self->_check_defined_not_empty($DESTINATION_ARG, $dest);
+  $self->_check_defined_not_empty($ROUTING_KEY_ARG, $route);
+  $self->_check_defined_not_empty($CHANNEL_ARG,     $cname);
 
-  defined $source or
-    $self->logconfess("The $SOURCE_ARG argument was undefined");
-  $source or $self->logconfess("The $SOURCE_ARG argument was empty");
-
-  defined $dest or
-    $self->logconfess("The $DESTINATION_ARG argument was undefined");
-  $source or $self->logconfess("The $DESTINATION_ARG argument was empty");
-
-  defined $route or
-    $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
-  $route or $self->logconfess("The $ROUTING_KEY_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
-
-  $source ||= '';
+  $source ||= q{};
 
   $self->channel($cname)->unbind_queue
     (queue       => $dest,
@@ -753,13 +691,8 @@ sub delete_queue {
   my $cv    = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
-
-  defined $name or $self->logconfess("The $NAME_ARG argument was undefined");
-  $name or $self->logconfess("The $NAME_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+  $self->_check_defined_not_empty($NAME_ARG,    $name);
+  $self->_check_defined_not_empty($CHANNEL_ARG, $cname);
 
   $self->channel($cname)->delete_queue
     (queue      => $name,
@@ -786,17 +719,11 @@ sub publish {
   my $cv        = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
-
-  defined $route or
-    $self->logconfess("The $ROUTING_KEY_ARG argument was undefined");
-  $route or $self->logconfess("The $ROUTING_KEY_ARG argument was empty");
+  $self->_check_defined_not_empty($ROUTING_KEY_ARG, $route);
+  $self->_check_defined_not_empty($CHANNEL_ARG,     $cname);
 
   defined $ename or
     $self->logconfess("The $EXCHANGE_ARG argument was undefined");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
 
   defined $body or $self->logconfess("The $BODY_ARG argument was undefined");
 
@@ -825,13 +752,8 @@ sub consume {
   my $cv           = delete $args{$CONDVAR_ARG};
 
   $self->_check_args(%args);
-
-  defined $queue or $self->logconfess("The $QUEUE_ARG argument was undefined");
-  $queue or $self->logconfess("The $QUEUE_ARG argument was empty");
-
-  defined $cname or
-    $self->logconfess("The $CHANNEL_ARG argument was undefined");
-  $cname or $self->logconfess("The $CHANNEL_ARG argument was empty");
+  $self->_check_defined_not_empty($QUEUE_ARG,   $queue);
+  $self->_check_defined_not_empty($CHANNEL_ARG, $cname);
 
   $no_ack ||= 0;
 
@@ -854,6 +776,7 @@ sub call_connect_handler {
   my ($self, $cv) = @_;
 
   $self->connect_handler->($self);
+  return;
 }
 
 after 'call_connect_handler' => sub {
@@ -869,6 +792,7 @@ sub call_connect_failure_handler {
   my ($iohandle, $code, $message) = @args;
 
   $self->connect_failure_handler->($self, $iohandle, $code, $message);
+  return;
 }
 
 after 'call_connect_failure_handler' => sub {
@@ -883,6 +807,7 @@ sub call_disconnect_handler {
   my ($self, $cv) = @_;
 
   $self->disconnect_handler->($self);
+  return;
 }
 
 after 'call_disconnect_handler' => sub {
@@ -900,6 +825,7 @@ sub call_open_channel_handler {
   my ($channel) = @args;
 
   $self->open_channel_handler->($self, $channel, $channel_name);
+  return;
 }
 
 after 'call_open_channel_handler' => sub {
@@ -917,6 +843,7 @@ sub call_close_channel_handler {
   my ($self, $channel_name, $cv) = @_;
 
   $self->close_channel_handler->($self, $channel_name);
+  return;
 }
 
 after 'call_close_channel_handler' => sub {
@@ -931,6 +858,7 @@ sub call_publish_handler {
   my ($self, $headers, $body, $route, $cv) = @_;
 
   $self->publish_handler->($self, $headers, $body, $route);
+  return;
 }
 
 after 'call_publish_handler' => sub {
@@ -947,6 +875,7 @@ sub call_consume_handler {
   my ($response) = @args;
 
   $self->consume_handler->($response);
+  return;
 }
 
 after 'call_consume_handler' => sub {
@@ -983,6 +912,7 @@ sub call_consume_cancel_handler {
   my ($response) = @args;
 
   $self->consume_cancel_handler->($response);
+  return;
 }
 
 after 'call_consume_cancel_handler' => sub {
@@ -999,6 +929,7 @@ sub call_error_handler {
   my ($response) = @args;
 
   $self->error_handler->($response);
+  return;
 }
 
 after 'call_error_handler' => sub {
@@ -1020,6 +951,8 @@ after 'call_error_handler' => sub {
 
 sub _check_args {
   my ($self, @args) = @_;
+
+  ##no critic (ProhibitParensWithBuiltins)
   if (scalar @args % 2 == 1) {
     $self->warn("Odd number of arguments in ", dump(\@args));
     pop @args;
@@ -1031,6 +964,19 @@ sub _check_args {
     my %args = @args;
     $self->warn("Unexpected arguments passed to $sub: ", dump(\%args));
   }
+  ##use critic
+
+  return;
+}
+
+sub _check_defined_not_empty {
+  my ($self, $arg_name, $arg_value) = @_;
+
+  defined $arg_value or
+    $self->logconfess("The $arg_name argument was undefined");
+  $arg_value or $self->logconfess("The $arg_name argument was empty");
+
+  return;
 }
 
 sub _make_default_handler {
@@ -1061,7 +1007,7 @@ sub _maybe_sync {
   # wiring up all the callbacks before any methods have been
   # called.
   if (!$self->blocking_enabled) {
-    $self->$orig(%args);
+    return $self->$orig(%args);
   }
   else {
     if (!defined $args{$CONDVAR_ARG}) {
@@ -1072,7 +1018,7 @@ sub _maybe_sync {
     $self->$orig(%args);
     # This return value propagates any asynchronously created value
     # (from AnyEvent::CondVar->send calls) back to the caller.
-    $args{$CONDVAR_ARG}->recv;
+    return $args{$CONDVAR_ARG}->recv;
   }
 }
 

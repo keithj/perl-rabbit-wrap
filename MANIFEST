@@ -1,6 +1,6 @@
 .travis.yml
 Build.PL
-Build.pm
+COPYING
 etc/log4perl_tests.conf
 lib/WTSI/NPG/RabbitMQ/Client.pm
 lib/WTSI/NPG/RabbitMQ/Loggable.pm
@@ -8,4 +8,6 @@ lib/WTSI/NPG/RabbitMQ/Version.pm
 MANIFEST			This list of files
 README
 t/client.t
+t/critic.t
 t/lib/WTSI/NPG/RabbitMQ/ClientTest.pm
+t/perlcriticrc
