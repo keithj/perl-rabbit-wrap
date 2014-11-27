@@ -1,5 +1,5 @@
 
-package WTSI::NPG::RabbitMQ::Client;
+package WTSI::DNAP::RabbitMQ::Client;
 
 use AnyEvent::RabbitMQ;
 use AnyEvent::Strict;
@@ -172,7 +172,7 @@ sub channel {
                success, the connect_failure_handler on failure and the
                error_handler in response to read_failure, return or close
                events.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -239,7 +239,7 @@ sub connect {
 
   Description: Disconnect from a RabbitMQ server. Call the disconnect_handler
                on success or the error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -270,7 +270,7 @@ sub disconnect {
   Description: Open a new channel on a RabbitMQ server. Call the
                open_channel_handler on success, the error_handler on
                failure and the close_channel_handler on a close event.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -307,7 +307,7 @@ sub open_channel {
   Description: Close a channel on a RabbitMQ server. Call the
                close_channel_handler on success or the error_handler on
                failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -348,7 +348,7 @@ sub close_channel {
 
   Description: Declare an exchange on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -464,7 +464,7 @@ sub unbind_exchange {
 
   Description: Delete an exchange on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -568,7 +568,7 @@ sub declare_queue {
 
   Description: Bind a queue on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -629,7 +629,7 @@ sub bind_queue {
 
   Description: Unbind a queue on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -678,7 +678,7 @@ sub unbind_queue {
 
   Description: Delete a queue on a RabbitMQ server. Call the
                error_handler on failure.
-  Returntype : WTSI::NPG::RabbitMQ::Client
+  Returntype : WTSI::DNAP::RabbitMQ::Client
 
 =cut
 
@@ -1038,11 +1038,11 @@ __END__
 
 =head1 NAME
 
-WTSI::NPG::RabbitMQ::Client
+WTSI::DNAP::RabbitMQ::Client
 
 =head1 DESCRIPTION
 
-WTSI::NPG::RabbitMQ::Client is a convenience wrapper around
+WTSI::DNAP::RabbitMQ::Client is a convenience wrapper around
 AnyEvent::RabbitMQ which provides these features:
 
  - Sets up default callbacks for events fired while performing common

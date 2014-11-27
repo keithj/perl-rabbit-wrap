@@ -1,3 +1,4 @@
+
 use strict;
 use warnings;
 
@@ -10,8 +11,7 @@ eval {
 if ($@) {
   plan skip_all => 'Test::Perl::Critic not installed';
 } else {
-  Test::Perl::Critic->import(
-                             -severity => 1,
+  Test::Perl::Critic->import(-severity => 1,
                              -profile => 't/perlcriticrc',
                              -verbose => "%m at %f line %l, policy %p\n");
   all_critic_ok();
