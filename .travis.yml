@@ -35,7 +35,7 @@ script:
 
 after_success:
   - ./Build dist
-  - export DIST_FILE=$(ls WTSI-NPG-RabbitMQ-*.tar.gz)
+  - export DIST_FILE=$(ls WTSI-DNAP-RabbitMQ-*.tar.gz)
 
 deploy:
   provider: releases
