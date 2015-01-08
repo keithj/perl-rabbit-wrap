@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use base qw(Test::Class);
-use Test::More tests => 41;
+use Test::More tests => 50;
 use Test::Exception;
 
 use Log::Log4perl;
@@ -50,6 +50,32 @@ sub connect_disconnect : Test(4) {
   ok($disconnect_calledback, 'Disconnect callback fired');
 }
 
+sub connect_disconnect_async : Test(3) {
+  my $connect_calledback    = 0;
+  my $disconnect_calledback = 0;
+
+  my $cv = AnyEvent->condvar;
+
+  my $client = WTSI::DNAP::RabbitMQ::Client->new
+    (blocking_enabled => 0,
+     connect_handler  => sub {
+       my ($self) = @_;
+       $connect_calledback++;
+
+       $self->disconnect;
+     },
+     disconnect_handler => sub {
+       $disconnect_calledback++;
+       $cv->send;
+     });
+
+  ok($client->connect(@credentials), 'Can connect async');
+  $cv->recv;
+
+  ok($connect_calledback,    'Connect callback fired async');
+  ok($disconnect_calledback, 'Disconnect callback fired async');
+}
+
 sub open_close_channel : Test(9) {
   my $open_calledback  = 0;
   my $close_calledback = 0;
@@ -70,6 +96,40 @@ sub open_close_channel : Test(9) {
   ok(!$client->channel($channel_name)->is_open, 'Channel is closed');
   ok($close_calledback, 'Close callback fired');
   $client->disconnect;
+}
+
+sub open_close_channel_async : Test(2) {
+  my $open_calledback  = 0;
+  my $close_calledback = 0;
+
+  my $channel_name = 'channel.' . $$;
+  my $cv = AnyEvent->condvar;
+
+  my $client = WTSI::DNAP::RabbitMQ::Client->new
+    (blocking_enabled => 0,
+     connect_handler  => sub {
+       my ($self) = @_;
+       $self->open_channel(name => $channel_name);
+     },
+     open_channel_handler  => sub {
+       my ($self) = @_;
+       $open_calledback++;
+       $self->close_channel(name => $channel_name);
+     },
+     close_channel_handler => sub {
+       my ($self) = @_;
+       $close_calledback++;
+       $self->disconnect;
+     },
+     disconnect_handler => sub {
+       $cv->send;
+     });
+
+  $client->connect(@credentials);
+  $cv->recv;
+
+  ok($open_calledback,  'Open callback fired');
+  ok($close_calledback, 'Close callback fired');
 }
 
 sub declare_delete_exchange : Test(2) {
@@ -237,6 +297,169 @@ sub publish_consume : Test(2) {
   $consumer->consume(channel => $channel_name,
                      queue   => $queue_name);
 
+  # Wait until all the messages are consumed (or timeout).
+  $cv->recv;
+  $consumer->disconnect;
+
+  cmp_ok($num_published, '==', $total, 'Number published');
+  cmp_ok($num_consumed,  '==', $total, 'Number consumed');
+
+  $publisher->unbind_queue(source      => $exchange_name,
+                           destination => $queue_name,
+                           routing_key => $routing_key,
+                           channel     => $channel_name);
+  $publisher->delete_queue(name    => $queue_name,
+                           channel => $channel_name);
+  $publisher->delete_exchange(name    => $exchange_name,
+                              channel => $channel_name);
+
+  $publisher->close_channel(name => $channel_name);
+  $publisher->disconnect;
+}
+
+sub publish_async : Test(2) {
+  my $channel_name  = 'channel.' . $$;
+  my $exchange_name = 'exchange.' . $$;
+  my $queue_name    = 'queue.' . $$;
+  my $routing_key   = 'publish_async_test.' . $$;
+
+  # Publish $total messages with an async client and then consume them
+  # with a blocking client
+  my $total = 100;
+  my $num_published = 0;
+  my $num_consumed  = 0;
+
+  # Timeout after 10 seconds
+  my $timeout = 10;
+  my $cv = AnyEvent->condvar;
+  my $timer = AnyEvent->timer(after => $timeout, cb => $cv);
+
+  # Provide a consume_handler callback that counts the messages with
+  # both an integer and an AnyEvent begin/end pair watcher
+  my $consumer = WTSI::DNAP::RabbitMQ::Client->new
+    (consume_handler => sub {
+       # Count the messages in
+       $num_consumed++;
+       $cv->end;
+     });
+
+  $consumer->connect(@credentials);
+  $consumer->open_channel(name => $channel_name);
+  $consumer->declare_exchange(name    => $exchange_name,
+                              channel => $channel_name);
+  $consumer->declare_queue(name    => $queue_name,
+                           channel => $channel_name);
+
+  my $publisher = WTSI::DNAP::RabbitMQ::Client->new
+    (blocking_enabled => 0,
+     connect_handler  => sub {
+       my ($self) = @_;
+       $self->open_channel(name => $channel_name);
+     },
+     open_channel_handler => sub {
+       my ($self) = @_;
+       $self->bind_queue(source      => $exchange_name,
+                         destination => $queue_name,
+                         routing_key => $routing_key,
+                         channel     => $channel_name);
+     },
+     bind_queue_handler => sub {
+       my ($self) = @_;
+       foreach my $i (0 .. $total - 1) {
+         $self->publish(channel     => $channel_name,
+                        exchange    => $exchange_name,
+                        routing_key => $routing_key,
+                        headers     => {test_id => $$},
+                        body        => "Hello async $i",
+                        mandatory   => 1);
+         # Count the messages out
+         $num_published++;
+         $cv->begin;
+       }
+     });
+
+  $publisher->connect(@credentials);
+
+  # Begin consuming the messages
+  $consumer->consume(channel => $channel_name,
+                     queue   => $queue_name);
+
+  # Wait until all the messages are consumed (or timeout).
+  $cv->recv;
+  $publisher->disconnect;
+
+  cmp_ok($num_published, '==', $total, 'Number published');
+  cmp_ok($num_consumed,  '==', $total, 'Number consumed');
+
+  $consumer->delete_queue(name    => $queue_name,
+                          channel => $channel_name);
+  $consumer->delete_exchange(name    => $exchange_name,
+                             channel => $channel_name);
+  $consumer->close_channel(name => $channel_name);
+  $consumer->disconnect;
+}
+
+sub consume_async : Test(2) {
+  my $publisher = WTSI::DNAP::RabbitMQ::Client->new;
+  my $channel_name  = 'channel.' . $$;
+  my $exchange_name = 'exchange.' . $$;
+  my $queue_name    = 'queue.' . $$;
+  my $routing_key   = 'consume_async_test.' . $$;
+
+  $publisher->connect(@credentials);
+  $publisher->open_channel(name => $channel_name);
+  $publisher->declare_exchange(name    => $exchange_name,
+                               channel => $channel_name);
+  $publisher->declare_queue(name    => $queue_name,
+                            channel => $channel_name);
+  $publisher->bind_queue(source      => $exchange_name,
+                         destination => $queue_name,
+                         routing_key => $routing_key,
+                         channel     => $channel_name);
+
+  # Publish $total messages with a blocking client and then consume
+  # them with an async client
+  my $total = 100;
+  my $num_published = 0;
+  my $num_consumed  = 0;
+
+  # Timeout after 10 seconds
+  my $timeout = 10;
+  my $cv = AnyEvent->condvar;
+  my $timer = AnyEvent->timer(after => $timeout, cb => $cv);
+
+  foreach my $i (0 .. $total - 1) {
+    $publisher->publish(channel     => $channel_name,
+                        exchange    => $exchange_name,
+                        routing_key => $routing_key,
+                        headers     => {test_id => $$},
+                        body        => "Hello async $i",
+                        mandatory   => 1);
+    # Count the messages out
+    $num_published++;
+    $cv->begin;
+  }
+
+  # Provide a consume_handler callback that counts the messages with
+  # both an integer and an AnyEvent begin/end pair watcher
+  my $consumer = WTSI::DNAP::RabbitMQ::Client->new
+    (blocking_enabled => 0,
+     connect_handler  => sub {
+       my ($self) = @_;
+       $self->open_channel(name => $channel_name);
+     },
+     open_channel_handler  => sub {
+       my ($self) = @_;
+       $self->consume(channel => $channel_name,
+                      queue   => $queue_name);
+     },
+     consume_handler  => sub {
+       # Count the messages in
+       $num_consumed++;
+       $cv->end;
+     });
+
+  $consumer->connect(@credentials);
   # Wait until all the messages are consumed (or timeout).
   $cv->recv;
   $consumer->disconnect;

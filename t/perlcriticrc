@@ -16,6 +16,11 @@ allow = if unless until
 [NamingConventions::Capitalization]
 packages = :no_restriction
 
+[-Modules::ProhibitExcessMainComplexity]
+
+[Subroutines::ProhibitManyArgs]
+max_arguments = 8
+
 [Subroutines::ProhibitUnusedPrivateSubroutines]
 private_name_regex = _(?!(build|make|call)_)\w+
 

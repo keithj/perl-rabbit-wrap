@@ -97,6 +97,62 @@ has 'close_channel_handler' =>
    lazy     => 1,
    builder  => '_make_default_handler');
 
+has 'declare_exchange_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'delete_exchange_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'bind_exchange_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'unbind_exchange_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'declare_queue_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'delete_queue_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'bind_queue_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
+has 'unbind_queue_handler' =>
+  (is       => 'rw',
+   isa      => 'CodeRef',
+   required => 1,
+   lazy     => 1,
+   builder  => '_make_default_handler');
+
 has 'publish_handler' =>
   (is       => 'rw',
    isa      => 'CodeRef',
@@ -288,9 +344,9 @@ sub open_channel {
     $self->logconfess("A channel named '$name' exists already");
 
   $self->broker->open_channel
-    (on_success => sub { $self->call_open_channel_handler($name, $cv, @_) },
+    (on_success => sub { $self->call_open_channel_handler($cv, $name, @_) },
      on_failure => sub { $self->call_error_handler($cv, @_) },
-     on_close   => sub { $self->call_close_channel_handler($name, $cv) });
+     on_close   => sub { $self->call_close_channel_handler($cv, $name) });
 
   return $self;
 }
@@ -325,7 +381,7 @@ sub close_channel {
     $self->logconfess("No channel named '$name' exists");
 
   $self->channels->{$name}->close
-    (on_success => sub { $self->call_close_channel_handler($name, $cv) },
+    (on_success => sub { $self->call_close_channel_handler($cv, $name) },
      on_failure => sub { $self->call_error_handler($cv, @_) });
 
   return $self;
@@ -381,10 +437,11 @@ sub declare_exchange {
      durable     => $durable,
      passive     => $passive,
      on_success  => sub {
-       $self->debug("Declared exchange '$name' on channel '$cname'");
-       $cv->send($self);
+       $self->call_declare_exchange_handler($cname, $cv, $name)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure  => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -411,11 +468,11 @@ sub bind_exchange {
     (source      => $source,
      destination => $dest,
      on_success => sub {
-       $self->debug("Bound exchange '$source' to '$dest' with ",
-                    "routing key '$route' on channel '$cname'");
-       $cv->send($self);
+       $self->call_bind_exchange_handler($cname, $cv, $source, $dest, $route)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -442,11 +499,11 @@ sub unbind_exchange {
     (source      => $source,
      destination => $dest,
      on_success => sub {
-        $self->debug("Unound exchange '$source' from '$dest' with ",
-                     "routing key '$route' on channel '$cname'");
-       $cv->send($self);
+       $self->call_unbind_exchange_handler($cname, $cv, $source, $dest, $route)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_);
+     });
 
   return $self;
 }
@@ -483,10 +540,11 @@ sub delete_exchange {
   $self->channel($cname)->delete_exchange
     (exchange   => $name,
      on_success => sub {
-       $self->debug("Deleted exchange '$name' on channel '$cname'");
-       $cv->send($self);
+       $self->call_delete_exchange_handler($cname, $cv, $name)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -538,14 +596,11 @@ sub declare_queue {
      auto_delete => $delete,
      on_success  => sub {
        my ($response) = @_;
-       my $frame = $response->method_frame;
-       my $msg = sprintf "Declared queue '%s' consumer count: %d, " .
-         "message count: %d on channel '$cname'",
-         $frame->queue, $frame->consumer_count, $frame->message_count;
-       $self->debug($msg);
-       $cv->send($frame->queue);
+       $self->call_declare_queue_handler($cname, $cv, $name, $response)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $name;
 }
@@ -602,12 +657,12 @@ sub bind_queue {
      routing_key => $route,
      arguments   => $arguments,
      on_success => sub {
-       $self->debug("Bound queue '$dest' to exchange '$source' with ",
-                    "routing key '$route' and arguments ", dump($arguments),
-                    " on channel '$cname'");
-       $cv->send($self);
+       $self->call_bind_queue_handler($cname, $cv, $source, $dest,
+                                      $route, $arguments)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -656,11 +711,11 @@ sub unbind_queue {
      exchange    => $source,
      routing_key => $route,
      on_success => sub {
-       $self->debug("Unbound queue '$dest' from exchange '$source' with ",
-                    "routing key '$route' on channel '$cname'");
-       $cv->send($self);
+       $self->call_unbind_queue_handler($cname, $cv, $source, $dest, $route)
      },
-     on_failure => sub { $self->call_error_handler($cv, @_) });
+     on_failure => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -696,10 +751,7 @@ sub delete_queue {
 
   $self->channel($cname)->delete_queue
     (queue      => $name,
-     on_success => sub {
-       $self->debug("Deleted queue '$name' on channel '$cname'");
-       $cv->send($self);
-     },
+     on_success => sub { $self->call_delete_queue_handler($cname, $cv, $name) },
      on_failure => sub { $self->call_error_handler($cv, @_) });
 
   return $self;
@@ -736,7 +788,7 @@ sub publish {
      body        => $body,
      immediate   => $immediate,
      mandatory   => $mandatory);
-  $self->call_publish_handler($headers, $body, $route, $cv);
+  $self->call_publish_handler($cname, $headers, $body, $route, $cv);
 
   return $self;
 }
@@ -767,7 +819,9 @@ sub consume {
      on_cancel    => sub {
        $self->call_consume_cancel_handler($cname, $cv, @_)
      },
-     on_failure   => sub { $self->call_error_handler($cv, @_) });
+     on_failure   => sub {
+       $self->call_error_handler($cv, @_)
+     });
 
   return $self;
 }
@@ -782,8 +836,7 @@ sub call_connect_handler {
 after 'call_connect_handler' => sub {
   my ($self, $cv) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called connect_handler");
 };
 
@@ -798,8 +851,7 @@ sub call_connect_failure_handler {
 after 'call_connect_failure_handler' => sub {
   my ($self, $cv, @args) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called connect_failure_handler");
 };
 
@@ -815,13 +867,19 @@ after 'call_disconnect_handler' => sub {
 
   $self->broker(undef);
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called disconnect_handler");
 };
 
+before 'call_open_channel_handler' => sub {
+  my ($self, $cv, $channel_name, @args) = @_;
+  my ($channel) = @args;
+
+  $self->channels->{$channel_name} = $channel;
+};
+
 sub call_open_channel_handler {
-  my ($self, $channel_name, $cv, @args) = @_;
+  my ($self, $cv, $channel_name, @args) = @_;
   my ($channel) = @args;
 
   $self->open_channel_handler->($self, $channel, $channel_name);
@@ -829,45 +887,164 @@ sub call_open_channel_handler {
 }
 
 after 'call_open_channel_handler' => sub {
-  my ($self, $channel_name, $cv, @args) = @_;
-  my ($channel) = @args;
+  my ($self, $cv, $channel_name, @args) = @_;
 
-  $self->channels->{$channel_name} = $channel;
-
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called open_channel for '$channel_name'");
 };
 
 sub call_close_channel_handler {
-  my ($self, $channel_name, $cv) = @_;
+  my ($self, $cv, $channel_name) = @_;
 
   $self->close_channel_handler->($self, $channel_name);
   return;
 }
 
 after 'call_close_channel_handler' => sub {
-  my ($self, $channel_name, $cv) = @_;
+  my ($self, $cv, $channel_name) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Handled close_channel for '$channel_name'");
 };
 
+sub call_declare_exchange_handler {
+  my ($self, $channel_name, $cv, $exchange_name) = @_;
+
+  $self->declare_exchange_handler->($self, $exchange_name);
+  return;
+}
+
+after 'call_declare_exchange_handler'=> sub {
+  my ($self, $channel_name, $cv, $exchange_name) = @_;
+
+  defined $cv and $cv->send($self);
+  $self->debug("Declared exchange '$exchange_name' on channel ",
+               "'$channel_name'");
+};
+
+sub call_bind_exchange_handler {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  $self->bind_exchange_handler->($self, $source, $dest, $route);
+  return;
+}
+
+after 'call_bind_exchange_handler'=> sub {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  defined $cv and $cv->send($self);
+  $self->debug("Bound exchange '$source' to '$dest' with ",
+               "routing key '$route' on channel '$channel_name'");
+};
+
+sub call_unbind_exchange_handler {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  $self->unbind_exchange_handler->($self, $source, $dest, $route);
+  return;
+}
+
+after 'call_unbind_exchange_handler'=> sub {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  defined $cv and $cv->send($self);
+  $self->debug("Unbound exchange '$source' to '$dest' with ",
+               "routing key '$route' on channel '$channel_name'");
+};
+
+sub call_delete_exchange_handler {
+  my ($self, $channel_name, $cv, $exchange_name) = @_;
+
+  $self->delete_exchange_handler->($self, $exchange_name);
+  return;
+}
+
+after 'call_delete_exchange_handler'=> sub {
+  my ($self, $channel_name, $cv, $exchange_name) = @_;
+
+  defined $cv and $cv->send($self);
+  $self->debug("Deleted exchange '$exchange_name' on channel '$channel_name'");
+};
+
+sub call_declare_queue_handler {
+  my ($self, $channel_name, $cv, $queue_name, $response) = @_;
+
+  $self->declare_queue_handler->($self, $queue_name, $response);
+  return;
+}
+
+after 'call_declare_queue_handler'=> sub {
+  my ($self, $channel_name, $cv, $queue_name, $response) = @_;
+
+  my $frame = $response->method_frame;
+  defined $cv and $cv->send($frame->queue);
+
+  my $msg = sprintf "Declared queue '%s' consumer count: %d, " .
+    "message count: %d on channel '$channel_name'",
+    $frame->queue, $frame->consumer_count, $frame->message_count;
+  $self->debug($msg);
+};
+
+sub call_bind_queue_handler {
+  my ($self, $channel_name, $cv, $source, $dest, $route, $arguments) = @_;
+
+  $self->bind_queue_handler->($self, $source, $dest, $route, $arguments);
+  return;
+}
+
+after 'call_bind_queue_handler' => sub {
+  my ($self, $channel_name, $cv, $source, $dest, $route, $arguments) = @_;
+
+  defined $cv and $cv->send($self);
+
+  $self->debug("Bound queue '$dest' to exchange '$source' with ",
+               "routing key '$route' and arguments ", dump $arguments,
+               " on channel '$channel_name'");
+};
+
+sub call_unbind_queue_handler {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  $self->unbind_queue_handler->($self, $source, $dest, $route);
+  return;
+}
+
+after 'call_unbind_queue_handler' => sub {
+  my ($self, $channel_name, $cv, $source, $dest, $route) = @_;
+
+  defined $cv and $cv->send($self);
+
+  $self->debug("Unbound queue '$dest' from exchange '$source' with ",
+               "routing key '$route' on channel '$channel_name'");
+};
+
+sub call_delete_queue_handler {
+  my ($self, $channel_name, $cv, $queue_name) = @_;
+
+  $self->delete_queue_handler->($self);
+  return;
+}
+
+after 'call_delete_queue_handler' => sub {
+  my ($self, $channel_name, $cv, $queue_name) = @_;
+
+  defined $cv and $cv->send($self);
+  $self->debug("Deleted queue '$queue_name' on channel '$channel_name'");
+};
+
 sub call_publish_handler {
-  my ($self, $headers, $body, $route, $cv) = @_;
+  my ($self, $channel_name, $headers, $body, $route, $cv) = @_;
 
   $self->publish_handler->($self, $headers, $body, $route);
   return;
 }
 
 after 'call_publish_handler' => sub {
-  my ($self, $headers, $body, $route, $cv) = @_;
+  my ($self, $channel_name, $headers, $body, $route, $cv) = @_;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called publish_handler for body '$body' with routing key ",
-               "'$route'");
+               "'$route' on channel '$channel_name'");
 };
 
 sub call_consume_handler {
@@ -881,8 +1058,6 @@ sub call_consume_handler {
 after 'call_consume_handler' => sub {
   my ($self, $channel_name, $no_ack, $cv, @args) = @_;
   my ($response) = @args;
-
-  defined $cv or $self->logconfess("The cv argument was not defined");
 
   if ($no_ack) {
     $self->debug("Not acking because consumer is in no_ack mode");
@@ -903,7 +1078,7 @@ after 'call_consume_handler' => sub {
   my $payload = $response->{body}->to_raw_payload;
   $self->debug("Received payload '$payload'");
 
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called consume_handler from '$channel_name'");
 };
 
@@ -919,8 +1094,7 @@ after 'call_consume_cancel_handler' => sub {
   my ($self, $channel_name, $cv, @args) = @_;
   my ($response) = @args;
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called consume_cancel_handler from '$channel_name'");
 };
 
@@ -944,8 +1118,7 @@ after 'call_error_handler' => sub {
     $self->error($response);
   }
 
-  defined $cv or $self->logconfess("The cv argument was not defined");
-  $cv->send($self);
+  defined $cv and $cv->send($self);
   $self->debug("Called error_handler");
 };
 
