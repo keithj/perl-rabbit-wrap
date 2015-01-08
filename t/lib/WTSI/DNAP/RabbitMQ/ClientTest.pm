@@ -273,7 +273,7 @@ sub publish_consume : Test(2) {
     $publisher->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
-                        headers     => {test_id => $$},
+                        header      => { headers => {test_id => $$} },
                         body        => "Hello $i",
                         mandatory   => 1);
     # Count the messages out
@@ -369,7 +369,7 @@ sub publish_async : Test(2) {
          $self->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
-                        headers     => {test_id => $$},
+                        header      => { headers => {test_id => $$} },
                         body        => "Hello async $i",
                         mandatory   => 1);
          # Count the messages out
@@ -432,7 +432,7 @@ sub consume_async : Test(2) {
     $publisher->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
-                        headers     => {test_id => $$},
+                        header      => { headers => {test_id => $$} },
                         body        => "Hello async $i",
                         mandatory   => 1);
     # Count the messages out
@@ -514,7 +514,7 @@ sub publish_consume_no_ack : Test(2) {
     $publisher->publish(channel     => $channel_name,
                         exchange    => $exchange_name,
                         routing_key => $routing_key,
-                        headers     => {test_id => $$},
+                        header      => { headers => {test_id => $$} },
                         body        => "Hello $i",
                         mandatory   => 1);
     # Count the messages out

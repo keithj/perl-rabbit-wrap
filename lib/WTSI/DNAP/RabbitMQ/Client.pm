@@ -21,7 +21,7 @@ our $DESTINATION_ARG  = 'destination';
 our $DURABLE_ARG      = 'durable';
 our $EXCHANGE_ARG     = 'exchange';
 our $EXCLUSIVE_ARG    = 'exclusive';
-our $HEADERS_ARG      = 'headers';
+our $HEADERS_ARG      = 'header';
 our $IMMEDIATE_ARG    = 'immediate';
 our $MANDATORY_ARG    = 'mandatory';
 our $NAME_ARG         = 'name';
@@ -784,10 +784,11 @@ sub publish {
   $self->channel($cname)->publish
     (exchange    => $ename,
      routing_key => $route,
-     header      => {headers => $headers}, # Paper over this extra hash level
+     header      => $headers,
      body        => $body,
      immediate   => $immediate,
      mandatory   => $mandatory);
+
   $self->call_publish_handler($cname, $headers, $body, $route, $cv);
 
   return $self;
@@ -1237,7 +1238,7 @@ Keith James <kdj@sanger.ac.uk>
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-Copyright (c) 2014 Genome Research Limited. All Rights Reserved.
+Copyright (c) 2014, 2015 Genome Research Limited. All Rights Reserved.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the Perl Artistic License or the GNU General
