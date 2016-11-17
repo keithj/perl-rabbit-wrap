@@ -5,6 +5,10 @@ etc/log4perl_tests.conf
 lib/WTSI/DNAP/RabbitMQ/Client.pm
 MANIFEST			This list of files
 README
+scripts/travis_before_install.sh
+scripts/travis_before_script.sh
+scripts/travis_install.sh
+scripts/travis_script.sh
 t/client.t
 t/critic.t
 t/lib/WTSI/DNAP/RabbitMQ/ClientTest.pm

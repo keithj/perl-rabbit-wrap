@@ -3,6 +3,7 @@ language: perl
 
 perl:
   - "5.16"
+  - "5.22"
 
 services:
   - rabbitmq
@@ -10,28 +11,16 @@ services:
 env:
   global:
     - secure: O6OxErKM7oM74EZEBdyfA4ljkU3M4ekEZcjyMtyU1x/vOleBglRln3+RgWe/r2fhckr4kpUWQwcfaDFgNPy8dpii8H5ptpGFBOqdddudHo6Dj5czRBeGd6y3L6+j+SuId7F41eYJJj/dFIZJOD+AHa8QXQDVP9NjfZ/33H0zQ5Y=
-    - ANYEVENT_VERSION="1.18"
-    - DNAP_UTILITIES_VERSION="0.4.1"
+    - WTSI_NPG_GITHUB_URL=https://github.com/wtsi-npg
 
 install:
-  - cpanm --quiet --notest AnyEvent
-  - cpanm --quiet --notest Data::Dump
-  - cpanm --quiet --notest Log::Log4perl
-  - cpanm --quiet --notest Net::AMQP
-  - cpanm --quiet --notest Readonly
-  - cpanm --quiet --notest Test::Class
-  - cpanm --quiet --notest Test::Exception
-  - cpanm --quiet --notest Test::Perl::Critic
-  - cpanm --quiet --notest AnyEvent::RabbitMQ
-  - cpanm --quiet --notest https://github.com/wtsi-npg/perl-dnap-utilities/releases/download/${DNAP_UTILITIES_VERSION}/WTSI-DNAP-Utilities-${DNAP_UTILITIES_VERSION}.tar.gz
+  - ./scripts/travis_install.sh
 
 before_script:
-  - sudo rabbitmqctl add_vhost /test
-  - sudo rabbitmqctl add_user npg npg
-  - sudo rabbitmqctl set_permissions -p /test npg '.*' '.*' '.*'
+  - ./scripts/travis_before_script.sh
 
 script:
-  perl Build.PL && ./Build test
+  - ./scripts/travis_script.sh
 
 after_success:
   - ./Build dist

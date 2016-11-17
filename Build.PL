@@ -18,7 +18,8 @@ my $build = WTSI::DNAP::Utilities::Build->new
                      'TAP::Harness'          => '>= 3.30',
                      'Test::Class'           => '>= 0.41',
                      'Test::More'            => '>= 0.98',
-                     'Test::Exception'       => '>= 0.32'
+                     'Test::Exception'       => '>= 0.32',
+                     'Test::Perl::Critic'    => 0
                     },
    requires =>      {
                      'AnyEvent::RabbitMQ'    => '>= 1.18',
@@ -26,7 +27,7 @@ my $build = WTSI::DNAP::Utilities::Build->new
                      'Data::Dump'            => '>= 1.21',
                      'Log::Log4perl'         => '>= 1.42',
                      'Moose'                 => '>= 2.1',
-                     'WTSI::DNAP::Utilities' => '>= 0.4.1'
+                     'WTSI::DNAP::Utilities' => 0
                     });
 
 $build->create_build_script;
