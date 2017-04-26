@@ -1,4 +1,12 @@
 
+********** WARNING - DO NOT USE THIS LIBRARY *
+
+In our hands AnyEvent::RabbitMQ (which this wraps) can lose messages
+or hang when under heavy load. We now prefer Net::AMQP::RabbitMQ, a
+wrapper around the librabbitmq library.
+
+**********
+
 WTSI::DNAP::RabbitMQ::Client is a convenience wrapper around
 AnyEvent::RabbitMQ which provides these features:
 
